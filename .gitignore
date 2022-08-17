@@ -1,0 +1,5 @@
+.env
+*.pkl
+./data_mj/games/*
+./data_mj/users/*
+./backup
