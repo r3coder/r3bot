@@ -10,6 +10,45 @@ Color = {
 
 db_base = "./data_mj/"
 
+RANK_SCORE = [None, 20000, 10000, -10000, -20000]
+
+class UserScore:
+    def __init__(self, name):
+        self.name = name
+        self.totalScore = 0
+        self.games = 0
+        self.scores = list()
+        self.ranks = list()
+        self.positions = list()
+
+    def AddScore(self, score, rank, position):
+        self.scores.append(score)
+        self.ranks.append(rank)
+        self.positions.append(position)
+        self.totalScore += score + RANK_SCORE[rank]
+        self.games += 1
+    
+    def GetScoreText(self):
+        return self.totalScore, self.totalScore/self.games
+    
+    def GetGames(self):
+        r = [0, 0, 0, 0, 0]
+        for ind in range(self.games):
+            r[self.ranks[ind]] += 1
+        return self.games, r[1] / self.games * 100, r[2] / self.games * 100, r[3] / self.games * 100, r[4] / self.games * 100
+
+
+    def __str__(self):
+        r = [0, 0, 0, 0, 0]
+        for ind in range(self.games):
+            r[self.ranks[ind]] += 1
+        v1 = " 100%" if r[1] == self.games else "%04.1f%%"%(r[1] / self.games * 100)
+        v2 = " 100%" if r[2] == self.games else "%04.1f%%"%(r[2] / self.games * 100)
+        v3 = " 100%" if r[3] == self.games else "%04.1f%%"%(r[3] / self.games * 100)
+        v4 = " 100%" if r[4] == self.games else "%04.1f%%"%(r[4] / self.games * 100)
+        return "%12s│%6.1f│%6.1f│%6d│%s│%s│%s│%s"%(self.name, self.totalScore/1000, self.totalScore/1000/self.games, self.games, v1, v2, v3 ,v4)
+       
+
 # Parse score file, return a list, list
 # First line is user, second line is score, separated by ","
 # Third line is note
@@ -24,17 +63,6 @@ def ParseScoreFile(file):
             score[i] = int(score[i])
         note = lines[2].strip()
         return user, score, note
-
-def RankScore(score, uma = [20000, 10000], oka = 0):
-    v = score.copy()
-    v.sort()
-    score[score.index(v[3])] += 0 + uma[0] + oka * 3
-    score[score.index(v[2])] += 0 + uma[1] - oka * 1
-    score[score.index(v[1])] += 0 - uma[1] - oka * 1
-    score[score.index(v[0])] += 0 - uma[0] - oka * 1
-    for i in range(len(score)):
-        score[i] = score[i] / 1000.0
-    return score
 
 class MahjongScore:
     def __init__(self):
@@ -89,25 +117,35 @@ class MahjongScore:
         # temp coding, change to class later on
         files = os.listdir(db_base + "games")
         files.sort(key=lambda x: int(x.split(".")[0]))
-        total_score, play_count = {}, {}
+
+        userscores = {}
+
         # parse each file
         for f in files:
             user, score, note = ParseScoreFile(db_base + "games/" + f)
-            rscore = RankScore(score)
+            rank = [4, 3, 2, 1]
+            sr = [sum(x) for x in zip(score, rank)]
+            vl = sr.copy()
+            vl.sort(reverse=True)
             for ind in range(len(user)):
-                if user[ind] in total_score:
-                    total_score[user[ind]] += rscore[ind]
-                    play_count[user[ind]] += 1
-                else:
-                    total_score[user[ind]] = rscore[ind]
-                    play_count[user[ind]] = 1
-        # sort by total score
-        total_score = sorted(total_score.items(), key=lambda x: x[1], reverse=True)
-        # add embed to each user
-        rank = "```\n"
-        rank += "          이름      총점     평균     국수\n"
-        for i, v in enumerate(total_score):
-            rank += "%12s   %6.1f   %6.1f     %3d\n"%(v[0], v[1], v[1]/play_count[v[0]],play_count[v[0]])
-        rank += "```"
-        embed = interactions.Embed(title="마작 점수 랭킹", description = rank, color=Color["blue"])
+                if user[ind] not in userscores:
+                    userscores[user[ind]] = UserScore(user[ind])
+                userscores[user[ind]].AddScore(score[ind], sr.index(vl[ind])+1, ind+1)
+        
+        # sort by totalScore
+        userscores = sorted(userscores.values(), key=lambda x: x.totalScore, reverse=True)
+
+        name = ""
+        score = ""
+        rank = ""
+        for i, v in enumerate(userscores):
+            name += v.name + "\n"
+            score += "`%6.1f (%6.1f)`\n"%(v.totalScore/1000, v.totalScore/v.games/1000)
+            t, v1, v2, v3, v4 = v.GetGames()
+            rank += "`%3d (%03d%%/%03d%%/%03d%%/%03d%%)`\n"%(t, v1, v2, v3, v4)
+        
+        embed = interactions.Embed(title="마작 점수 랭킹", description = "", color=Color["blue"])
+        embed.add_field(name="이름", value=name, inline=True)
+        embed.add_field(name="총점 (평균)", value=score, inline=True)
+        embed.add_field(name="국수 (1등/2등/3등/4등)", value=rank, inline=True)
         return embed
