@@ -460,7 +460,7 @@ class Manager:
         return interactions.Embed(title="%s님의 캐릭터 목록입니다."%owner, description="%s"%s, color=Color["blue"])
 
 
-    def AddCharacter(self, owner, name, role, ess, power, sup):
+    def AddCharacter(self, owner, name, role, ess=True, power=1.0, sup=None):
         if role not in ROLE_LIST:
             return interactions.Embed(description="직업이 잘못되었습니다.\n\n직업 리스트 : %s"%str(ROLE_LIST), color=Color["red"])
         c = Character(owner, name, role, ess, power, sup)
