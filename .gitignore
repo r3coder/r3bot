@@ -3,3 +3,4 @@
 ./data_mj/games/*
 ./data_mj/users/*
 ./backup
+./__pycache__
