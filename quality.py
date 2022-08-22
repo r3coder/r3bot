@@ -17,7 +17,22 @@ def GetRandomQuality():
     random_value = random.random()*100
     for i in range(len(random_table)):
         if random_value > random_table[i]:
-            return random.randint((9-i)*10+1, (10-i)*10)
+            if i == len(random_table) - 1:
+                return random.randint(0, 10)
+            else:
+                return random.randint((9-i)*10+1, (10-i)*10)
+
+def GetProb(value):
+    random_table = [0.76, 1.01, 1.25, 2.52, 6.32, 10.07, 13.86, 17.63, 21.41, 25.19]
+    if value == 100:
+        return 0
+    elif value <= 10:
+        return 25.19 * (11 - value - 1) / 11 + 74.81
+    prob = 0
+    for i in range((100-value)//10):
+        prob += random_table[i]
+    prob += (random_table[(100-value)//10]) * (9 - (value - 1) % 10) / 10
+    return prob 
 
 def GetBar(value):
     squ = (value - 1) // 5 + 1
@@ -116,7 +131,7 @@ class QualitySim:
         current_token = data["tokens"]
         embed = interactions.Embed(title="품질 업글 시뮬레이터 : %s"%(owner), description="혼돈의 돌 수 : %d / %d "%(current_token, MAX_TOKENS), color=0xED9021)
         for i in range(6):
-            embed.add_field(name="[%d] 환상의 %s 티어 %d `(시도: %d/%d)`"%(data["q%d"%i], ARMOR_NAME[i], data["l%d"%i],  data["t%d"%i], data["tt%d"%i]), value="%s"%GetBar(data["q%d"%i]), inline=False)
+            embed.add_field(name="[%d] 환상의 %s 티어 %d `(시도: %d/%d)`"%(data["q%d"%i], ARMOR_NAME[i], data["l%d"%i],  data["t%d"%i], data["tt%d"%i]), value="%s `%6.2f%%`"%(GetBar(data["q%d"%i]), GetProb(data["q%d"%i])), inline=False)
         return embed
 
     def GetButtons(self, owner):
