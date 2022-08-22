@@ -87,30 +87,10 @@ async def CommandLuck(ctx: interactions.CommandContext):
     name="party_generate",
     description="파티를 결성합니다 (관리자용)",
     default_member_permissions=interactions.Permissions.ADMINISTRATOR,
-    scope=GUILD,
-    options = [
-        interactions.Option(
-            name="max_power",
-            description="파티의 최대 딜량",
-            type=interactions.OptionType.INTEGER,
-            required=False
-        ),
-        interactions.Option(
-            name="min_power",
-            description="파티의 최소 딜량",
-            type=interactions.OptionType.INTEGER,
-            required=False
-        ),
-        interactions.Option(
-            name="priority_power",
-            description="우선 배정 딜러의 딜량",
-            type=interactions.OptionType.INTEGER,
-            required=False
-        )
-    ]
+    scope=GUILD
 )
-async def CommandPartyGenerate(ctx: interactions.CommandContext, max_power: float = 5.0, min_power: float = 4.0, priority_power: float = 3.0):
-    embeds = PM.PartyGenerate(max_power, min_power, priority_power)
+async def CommandPartyGenerate(ctx: interactions.CommandContext):
+    embeds = PM.PartyGenerate()
     SavePartyManager(PM)
     await ctx.send("", embeds=embeds)
 
