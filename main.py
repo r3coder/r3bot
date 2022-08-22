@@ -13,12 +13,16 @@ import asyncio
 
 from misc import Rice, TodayLuck
 from emote import emote_dict
+
 from utils import SavePartyManager, LoadPartyManager
 from manager import Manager
 PM = Manager()
 
 from mahjong import MahjongScore
 MS = MahjongScore()
+
+from quality import QualitySim
+QS = QualitySim()
 
 bot = interactions.Client(TOKEN, intents=interactions.Intents.DEFAULT | interactions.Intents.GUILD_MESSAGE_CONTENT)
 
@@ -52,7 +56,7 @@ async def on_message_create(ctx: interactions.CommandContext):
 
 
 
-
+##################################################
 # Rice
 @bot.command(
     name="auction",
@@ -81,6 +85,8 @@ async def CommandLuck(ctx: interactions.CommandContext):
     embeds = TodayLuck()
     await ctx.send("", embeds=embeds)
 
+
+##################################################
 # Party Manager Functions
 
 @bot.command(
@@ -386,6 +392,7 @@ async def CommandPartySwap(ctx: interactions.CommandContext, name1: str, name2: 
     SavePartyManager(PM)
     await ctx.send("", embeds=embeds)
 
+##################################################
 # Mahjong Commands
 
 @bot.command(
@@ -499,5 +506,77 @@ async def CommandMahjongRecent(ctx: interactions.CommandContext):
     embeds = MS.ShowRanking()
     await ctx.send("", embeds=embeds)
 
+##################################################
+# Quality Upgrade
+
+@bot.command(
+    name="quality_upgrade",
+    description="품질작 시뮬레이터를 불러옵니다.",
+    scope=GUILD
+)
+async def CommandQualityUpgrade(ctx: interactions.CommandContext):
+    owner = str(ctx.author.user)
+    embeds = QS.GetEmbed(owner)
+    btns = QS.GetButtons(owner)
+    await ctx.send("", embeds=embeds,
+        components=btns)
+
+@bot.command(
+    name="quality_rank",
+    description="품질작 시뮬레이터의 랭킹을 보여줍니다.",
+    scope=GUILD
+)
+async def CommandQualityUpgrade(ctx: interactions.CommandContext):
+    embeds = QS.GetRank()
+    await ctx.send("", embeds=embeds)
+
+
+@bot.component("qub0")
+async def CommandQualityUpgrade0(ctx: interactions.ComponentContext):
+    owner = str(ctx.author.user)
+    embeds = QS.UpgradeQuality(owner, 0)
+    btns = QS.GetButtons(owner)
+    await ctx.edit("", embeds=embeds,
+        components=btns)
+
+@bot.component("qub1")
+async def CommandQualityUpgrade1(ctx: interactions.ComponentContext):
+    owner = str(ctx.author.user)
+    embeds = QS.UpgradeQuality(owner, 1)
+    btns = QS.GetButtons(owner)
+    await ctx.edit("", embeds=embeds,
+        components=btns)
+
+@bot.component("qub2")
+async def CommandQualityUpgrade2(ctx: interactions.ComponentContext):
+    owner = str(ctx.author.user)
+    embeds = QS.UpgradeQuality(owner, 2)
+    btns = QS.GetButtons(owner)
+    await ctx.edit("", embeds=embeds,
+        components=btns)
+
+@bot.component("qub3")
+async def CommandQualityUpgrade3(ctx: interactions.ComponentContext):
+    owner = str(ctx.author.user)
+    embeds = QS.UpgradeQuality(owner, 3)
+    btns = QS.GetButtons(owner)
+    await ctx.edit("", embeds=embeds,
+        components=btns)
+
+@bot.component("qub4")
+async def CommandQualityUpgrade4(ctx: interactions.ComponentContext):
+    owner = str(ctx.author.user)
+    embeds = QS.UpgradeQuality(owner, 4)
+    btns = QS.GetButtons(owner)
+    await ctx.edit("", embeds=embeds,
+        components=btns)
+
+@bot.component("qub5")
+async def CommandQualityUpgrade5(ctx: interactions.ComponentContext):
+    owner = str(ctx.author.user)
+    embeds = QS.UpgradeQuality(owner, 5)
+    btns = QS.GetButtons(owner)
+    await ctx.edit("", embeds=embeds,
+        components=btns)
 
 bot.start()
