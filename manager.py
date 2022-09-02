@@ -604,7 +604,7 @@ class Manager:
             return "", interactions.Embed(description="존재하지 않는 파티 번호입니다.", color=Color["red"])
         if self.parties[ind-1].isCleared():
             return interactions.Embed(description="이미 클리어된 파티입니다.", color=Color["red"])
-        embed = "", interactions.Embed(title="파티 %d번 호출!"%ind, description="%s"%self.parties[ind-1], color=Color["blue"])
+        embed = interactions.Embed(title="파티 %d번 호출!"%ind, description="%s"%self.parties[ind-1], color=Color["blue"])
         msg = ""
         for i in self.parties[ind-1].members:
             msg += "%s "%self.pingList[i.owner]
