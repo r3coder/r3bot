@@ -579,4 +579,63 @@ async def CommandQualityUpgrade5(ctx: interactions.ComponentContext):
     await ctx.edit("", embeds=embeds,
         components=btns)
 
+
+@bot.command(
+    name="quality_addstone",
+    description="혼돈의 돌을 지급합니다",
+    default_member_permissions=interactions.Permissions.ADMINISTRATOR,
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="owner",
+            description="혼돈의 돌을 지급할 사용자",
+            type=interactions.OptionType.USER,
+            required=False
+        ),
+        interactions.Option(
+            name="amount",
+            description="지급할 혼돈의 돌의 수",
+            type=interactions.OptionType.INTEGER,
+            required=False
+        )
+    ]
+)
+async def CommandQualityAdd(ctx: interactions.CommandContext, owner: interactions.Member = None, amount: int = 0):
+    if owner is None:
+        owner = str(ctx.author.user)
+    else:
+        owner = str(owner.user)
+    embeds = QS.AddStone(owner, amount)
+    await ctx.send("", embeds = embeds)
+
+@bot.command(
+    name="quality_substone",
+    description="혼돈의 돌을 압수합니다",
+    default_member_permissions=interactions.Permissions.ADMINISTRATOR,
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="owner",
+            description="혼돈의 돌을 압수할 사용자",
+            type=interactions.OptionType.USER,
+            required=False
+        ),
+        interactions.Option(
+            name="amount",
+            description="압수할 혼돈의 돌의 수",
+            type=interactions.OptionType.INTEGER,
+            required=False
+        )
+    ]
+)
+async def CommandQualitySub(ctx: interactions.CommandContext, owner: interactions.Member = None, amount: int = 0):
+    if owner is None:
+        owner = str(ctx.author.user)
+    else:
+        owner = str(owner.user)
+    embeds = QS.SubStone(owner, amount)
+    await ctx.send("", embeds = embeds)
+
+
+
 bot.start()

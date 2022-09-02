@@ -7,9 +7,11 @@ import pickle
 import time
 
 ARMOR_NAME = ["머리장식", "어깨장식", "상의", "하의", "장갑", "무기"]
+PREFIX_NAME = ["", "환상의", "환장의", "극한의", "존재하지 않는", "초월한", "무한의", "영겁의"]
+TIER_EMOTE  = ["", ":one:", ":two:", ":three:", ":four:", ":five:", ":six:", ":seven:"]
 
-MAX_TOKENS = 72
-TOKEN_TIME = 3600
+MAX_TOKENS = 300
+TOKEN_TIME = 600
 db_base = "./data/qs/"
 
 def GetRandomQuality():
@@ -21,6 +23,10 @@ def GetRandomQuality():
                 return random.randint(0, 10)
             else:
                 return random.randint((9-i)*10+1, (10-i)*10)
+
+
+def GetScore(value):
+    return 30 + value * value / 100 * 0.7
 
 def GetProb(value):
     random_table = [0.76, 1.01, 1.25, 2.52, 6.32, 10.07, 13.86, 17.63, 21.41, 25.19]
@@ -80,20 +86,24 @@ class UserStat:
         self.name = name
         self.score = 0
         for i in range(5):
-            self.score += data["q%d"%i] + 100 * (data["l%d"%i] - 1)
-        self.score += (data["q5"] + 100 * (data["l5"] - 1)) * 3
+            self.score += GetScore(data["q%d"%i]) + 100 * (data["l%d"%i] - 1)
+        self.score += (GetScore(data["q5"]) + 100 * (data["l5"] - 1)) * 3
 
         self.tries = 0
         for i in range(6):
             self.tries += data["tt%d"%i]
 
+        self.stone = 0
+        for i in range(5):
+            self.stone += data["tt%d"%i]
+        self.stone += data["tt5"] * 3
+
         self.tier = ""
-        tierRank = ["", ":one:", ":two:", ":three:", ":four:"]
         for i in range(6):
-            self.tier += tierRank[data["l%d"%i]] + GetCol(data["q%d"%i]) + " "
+            self.tier += TIER_EMOTE[data["l%d"%i]] + GetCol(data["q%d"%i]) + " "
 
     def GetInfo(self):
-        return self.score, self.tries, self.tier
+        return self.score, self.tries, self.tier, self.stone
 
 
 class QualitySim:
@@ -114,24 +124,30 @@ class QualitySim:
         SaveData(owner, data)
         return data
 
-    def GetEmbed(self, owner):
+    def Update(self, owner):
         if not os.path.exists(db_base + "users/" + owner):
             data = self.Initialize(owner)
         else:
             data = LoadData(owner)
-        
         newTokens = (int(time.time()) - data["lasttime"]) // TOKEN_TIME
-
-        if newTokens > 0:
+        if newTokens > 0 and data["tokens"] < MAX_TOKENS:
             data["tokens"] += newTokens
             if data["tokens"] > MAX_TOKENS:
                 data["tokens"] = MAX_TOKENS
             data["lasttime"] = int(time.time())
             SaveData(owner, data)
+
+    def GetEmbed(self, owner):
+        if not os.path.exists(db_base + "users/" + owner):
+            data = self.Initialize(owner)
+        
+        self.Update(owner)
+        data = LoadData(owner)
+
         current_token = data["tokens"]
         embed = interactions.Embed(title="품질 업글 시뮬레이터 : %s"%(owner), description="혼돈의 돌 수 : %d / %d "%(current_token, MAX_TOKENS), color=0xED9021)
         for i in range(6):
-            embed.add_field(name="[%d] 환상의 %s 티어 %d `(시도: %d/%d)`"%(data["q%d"%i], ARMOR_NAME[i], data["l%d"%i],  data["t%d"%i], data["tt%d"%i]), value="%s `%6.2f%%`"%(GetBar(data["q%d"%i]), GetProb(data["q%d"%i])), inline=False)
+            embed.add_field(name="[%d] %s %s (티어 %d) `(시도: %d/%d)`"%(data["q%d"%i], PREFIX_NAME[data["l%d"%i]], ARMOR_NAME[i], data["l%d"%i],  data["t%d"%i], data["tt%d"%i]), value="%s `%6.2f%%`"%(GetBar(data["q%d"%i]), GetProb(data["q%d"%i])), inline=False)
         return embed
 
     def GetButtons(self, owner):
@@ -201,17 +217,42 @@ class QualitySim:
             l.append(UserStat(f.split("/")[-1], data))
         l.sort(key=lambda x: x.score, reverse=True)
 
-        emb0 = ""
-        emb1 = ""
-        emb2 = ""
-        for ind in l:
-            a0, a1, a2 = ind.GetInfo()
-            emb0 += ind.name + "\n"
-            emb1 += "`%5d (%4d)`\n"%(a0, a1)
-            emb2 += "%s\n"%a2
-        
-        embed = interactions.Embed(title="품질작 랭킹", description = "", color=0xED9021)
-        embed.add_field(name="이름", value=emb0, inline=True)
-        embed.add_field(name="점수 (시도횟수)", value=emb1, inline=True)
-        embed.add_field(name="정보", value=emb2, inline=True)
+        embed = interactions.Embed(title="품질작 랭킹", description = "점수 계산법 : `(30+[품질 수치]^2÷100×0.7+[티어]×100)×[무기=3, 장비=1]`", color=0xED9021)
+        for ini in range((len(l)-1)//5 + 1):
+            emb0 = ""
+            emb1 = ""
+            emb2 = ""
+            for i in range(ini*5, min((ini+1)*5, len(l))):
+                a0, a1, a2, a3 = l[i].GetInfo()
+                emb0 += l[i].name + "\n"
+                emb1 += "%5d (%d/%d)\n"%(a0, a1, a3)
+                emb2 += "%s\n"%a2
+            if ini == 0:
+                embed.add_field(name="이름", value=emb0, inline=True)
+                embed.add_field(name="점수 (횟수/혼돌)", value=emb1, inline=True)
+                embed.add_field(name="정보", value=emb2, inline=True)
+            else:
+                embed.add_field(name="===", value=emb0, inline=True)
+                embed.add_field(name="===", value=emb1, inline=True)
+                embed.add_field(name="===", value=emb2, inline=True)
         return embed
+
+    
+    def AddStone(self, owner, amount):
+        if not os.path.exists(db_base + "users/" + owner):
+            return interactions.Embed(title="유저가 존재하지 않습니다", description = "", color=0xED9021)
+        self.Update(owner)
+        data = LoadData(owner)
+        data["tokens"] += amount
+        SaveData(owner, data)
+        return interactions.Embed(title="유저 %s에게 돌을 %d개 지급해 현재 돌은 %d개입니다."%(owner, amount, data["tokens"]), description = "", color=0xED9021)
+    
+    def SubStone(self, owner, amount):
+        if not os.path.exists(db_base + "users/" + owner):
+            return interactions.Embed(title="유저가 존재하지 않습니다", description = "", color=0xED9021)
+
+        self.Update(owner)
+        data = LoadData(owner)
+        data["tokens"] -= amount
+        SaveData(owner, data)
+        return interactions.Embed(title="유저 %s에게 돌을 %d개 압수해 현재 돌은 %d개입니다."%(owner, amount, data["tokens"]), description = "", color=0xED9021)
