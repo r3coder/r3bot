@@ -8,7 +8,7 @@ Color = {
     "green": 0x22dd22,
 }
 
-db_base = "./data_mj/"
+db_base = "./data/mj/"
 
 RANK_SCORE = [None, 20000, 10000, -10000, -20000]
 

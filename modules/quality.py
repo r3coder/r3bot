@@ -185,12 +185,10 @@ class QualitySim:
             embed.add_field(name="장비 티어 업그레이드", value="품질을 초기화하고 티어가 올라갑니다.", inline=False)
             return embed
         
-        if data["tokens"] < 1:
+        if type == 5 and data["tokens"] < 3 * data["l%d"%type] or type != 5 and data["tokens"] < data["l%d"%type]:
             embed.add_field(name="혼돈의 돌이 부족합니다.", value="`[장비 티어 * 1]`개의 돌이 필요하며, 돌은 %d초에 하나씩 채워집니다"%TOKEN_TIME, inline=False)
             return embed
-        if type == 5 and data["tokens"] < 3:
-            embed.add_field(name="혼돈의 돌이 부족합니다.", value="`[장비 티어 * 3]`개의 돌이 필요하며, 돌은 %d초에 하나씩 채워집니다"%TOKEN_TIME, inline=False)
-            return embed
+
         newQ = GetRandomQuality()
 
         data["t%d"%type] += 1

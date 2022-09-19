@@ -155,11 +155,11 @@ class Manager:
         # Variables that saved
         self.characters = []
         self.pingList = dict()
+        self.userPause = dict()
 
-
-        # Variables that not saved
         self.parties = []
         self.leftovers = []
+
         self.assigned = {}
 
     def GetCharacterByName(self, name):
@@ -211,6 +211,8 @@ class Manager:
         # Count essential characters that is required to be included in a party
         essentialCharcterCount = 0
         for ch in self.characters:
+            if ch.owner in self.userPause and self.userPause[ch.owner]:
+                continue
             if ch.essential:
                 essentialCharcterCount += 1
 
@@ -236,6 +238,8 @@ class Manager:
         def GetOwnerNotAssigned():
             res = {}
             for character in self.characters:
+                if character.owner in self.userPause and self.userPause[character.owner]:
+                    continue
                 if not self.assigned[character.name] and character.essential:
                     if character.owner not in res:
                         res[character.owner] = 0
@@ -293,6 +297,10 @@ class Manager:
         # Create each member list
         supporters, dealers, leftovers = [], [], []
         for character in self.characters:
+            # Skip user's character if user is paused
+            if character.owner in self.userPause and self.userPause[character.owner]:
+                continue
+
             if character.essential:
                 if character.isSupporter():
                     supporters.append(character)
@@ -522,9 +530,26 @@ class Manager:
             stv = "(인원부족)" if len(p.members) < 4 else ""
             embed.add_field(name="파티 %d %s"%((v+1),stv), value="%s"%p, inline=False)
         p = "파티에 소속되지 못한 캐릭터들입니다.\n"
-        for i in self.leftovers:
-            p += "%s\n"%i
-        embed.add_field(name="파티 없음", value="%s"%p, inline=False)
+        leftc = 7
+        if len(self.leftovers) < leftc:
+            for i in self.leftovers:
+                p += "%s\n"%i
+            embed.add_field(name="파티 없음", value="%s"%p, inline=False)
+        else:
+            for ind in range(0, (len(self.leftovers)-1)//leftc+1):
+                p = ""
+                for i in range(leftc*ind, min(leftc*(ind+1)+leftc, len(self.leftovers))):
+                    p += "%s\n"%self.leftovers[i]
+                if ind == 0:
+                    embed.add_field(name="파티 없음", value="%s"%p, inline=False)
+                else:
+                    embed.add_field(name="_", value="%s"%p, inline=False)
+
+        value = ""
+        for k, v in self.userPause.items():
+            if v:
+                value += "%s\n"%k
+        embed.add_field(name="파티 배정을 일시중지한 사람", value="%s"%k, inline=False)
         return embed
 
     # List of Characters
@@ -720,8 +745,7 @@ class Manager:
         if c1 in self.leftovers:
             v1 = self._PartyLeave(c2)
             v2 = self._PartyJoin(ind2, c1)
-            if v1 and v2:
-                
+            if v1 and v2:                
                 return interactions.Embed(description="캐릭터 %s를 파티에 참여시키고 %s를 대기 명단으로 보냈습니다."%(c1.name, c2.name) + self._Info(c1, c2, ind1, ind2), color=Color["green"])
             else:
                 self._PartyLeave(c1)
@@ -738,10 +762,10 @@ class Manager:
                 return interactions.Embed(description="두 캐릭터의 위치를 바꾸는 데 실패했습니다." + self._Info(c1, c2, ind1, ind2), color=Color["red"])
         else:
             v1 = self._PartyLeave(c1)
-            v1 = self._PartyLeave(c2)
+            v2 = self._PartyLeave(c2)
             v3 = self._PartyJoin(ind1, c2)
-            v2 = self._PartyJoin(ind2, c1)
-            if v1 and v2 and v3:
+            v4 = self._PartyJoin(ind2, c1)
+            if v1 and v2 and v3 and v4:
                 return interactions.Embed(description="캐릭터 %s와 %s의 위치를 바꿨습니다."%(c1.name, c2.name) + self._Info(c1, c2, ind1, ind2), color=Color["green"])
             else:
                 self._PartyLeave(c1)
@@ -749,3 +773,10 @@ class Manager:
                 self._PartyJoin(ind2, c2)
                 self._PartyJoin(ind1, c1)
                 return interactions.Embed(description="두 캐릭터의 위치를 바꾸는 데 실패했습니다." + self._Info(c1, c2, ind1, ind2), color=Color["red"])
+
+    def PauseUser(self, owner, state):
+        self.userPause[owner] = state
+        if self.userPause[owner]:
+            return interactions.Embed(description="유저 %s를 파티 배정에서 제외했습니다."%owner, color=Color["red"])
+        else:
+            return interactions.Embed(description="유저 %s를 파티 배정에 포함했습니다."%owner, color=Color["green"])

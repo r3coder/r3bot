@@ -11,17 +11,17 @@ GUILD = os.getenv('DISCORD_GUILD')
 import interactions
 import asyncio
 
-from misc import Rice, TodayLuck
-from emote import emote_dict
+from modules.misc import Rice, TodayLuck
+from modules.emote import emote_dict
 
-from utils import SavePartyManager, LoadPartyManager
-from manager import Manager
+from modules.utils import SavePartyManager, LoadPartyManager
+from modules.manager import Manager
 PM = Manager()
 
-from mahjong import MahjongScore
+from modules.mahjong import MahjongScore
 MS = MahjongScore()
 
-from quality import QualitySim
+from modules.quality import QualitySim
 QS = QualitySim()
 
 bot = interactions.Client(TOKEN, intents=interactions.Intents.DEFAULT | interactions.Intents.GUILD_MESSAGE_CONTENT)
@@ -199,7 +199,7 @@ async def CommandCharacterList(ctx: interactions.CommandContext, owner: interact
         interactions.Option(
             name="power",
             description="추가할 캐릭터의 딜량 (미입력시 자동으로 딜량은 1.0입니다)",
-            type=interactions.OptionType.INTEGER,
+            type=interactions.OptionType.NUMBER,
             required=False
         ),
         interactions.Option(
@@ -391,6 +391,38 @@ async def CommandPartySwap(ctx: interactions.CommandContext, name1: str, name2: 
     embeds = PM.PartySwap(name1, name2)
     SavePartyManager(PM)
     await ctx.send("", embeds=embeds)
+
+
+
+@bot.command(
+    name="user_pause",
+    description="특정 사용자를 파티 배정에서 제외시킵니다.",
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="owner",
+            description="상태를 변경할 유저",
+            type=interactions.OptionType.USER,
+            required=False
+        ),
+        interactions.Option(
+            name="state",
+            description="True로 설정시 파티 배정에서 제외됩니다.",
+            type=interactions.OptionType.BOOLEAN,
+            required=False
+        )
+    ]
+)
+async def CommandCharacterAdd(ctx: interactions.CommandContext, owner: interactions.Member = None, state: bool = True):
+    if owner is None:
+        owner = str(ctx.author.user)
+    else:
+        owner = str(owner.user)
+    embeds = PM.PauseUser(owner, state)
+    SavePartyManager(PM)
+    await ctx.send("", embeds=embeds)
+
+
 
 ##################################################
 # Mahjong Commands
@@ -636,6 +668,29 @@ async def CommandQualitySub(ctx: interactions.CommandContext, owner: interaction
     embeds = QS.SubStone(owner, amount)
     await ctx.send("", embeds = embeds)
 
+
+@bot.command(
+    name="purge_message",
+    description="메세지를 삭제합니다.",
+    default_member_permissions=interactions.Permissions.ADMINISTRATOR,
+    options=[
+        interactions.Option(
+            name="amount",
+            description="삭제할 메세지의 수",
+            type=interactions.OptionType.INTEGER,
+            required=False
+        )
+    ],
+    scope=GUILD
+)
+async def CommandRemoveRecent(ctx: interactions.CommandContext, amount: int = 100):
+    await ctx.channel.purge(amount=amount)
+    embeds = interactions.Embed(
+        title="메세지 삭제 완료",
+        description=f"{amount}개의 메세지를 삭제했습니다.",
+        color=0xff0000
+    )
+    await ctx.send("", embeds=embeds)
 
 
 bot.start()
