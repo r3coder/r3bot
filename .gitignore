@@ -1,6 +1,10 @@
 .env
 *.pkl
-./data_mj/games/*
-./data_mj/users/*
-./backup
 *.pyc
+data/mj/games/*
+data/mj/users/*
+data/mj/yakuman/*
+data/pk/*
+data/pm/*
+data/qs/*
+data/bal/*
