@@ -11,6 +11,7 @@ Color = {
 db_base = "./data/mj/"
 
 RANK_SCORE = [None, 20000, 10000, -10000, -20000]
+WIND = ["東", "南", "西", "北"]
 
 class UserScore:
     def __init__(self, name):
@@ -119,7 +120,6 @@ class MahjongScore:
         files.sort(key=lambda x: int(x.split(".")[0]))
 
         userscores = {}
-
         # parse each file
         for f in files:
             user, score, note = ParseScoreFile(db_base + "games/" + f)
@@ -130,7 +130,7 @@ class MahjongScore:
             for ind in range(len(user)):
                 if user[ind] not in userscores:
                     userscores[user[ind]] = UserScore(user[ind])
-                userscores[user[ind]].AddScore(score[ind], sr.index(vl[ind])+1, ind+1)
+                userscores[user[ind]].AddScore(score[ind], vl.index(sr[ind])+1, ind+1)
         
         # sort by totalScore
         userscores = sorted(userscores.values(), key=lambda x: x.totalScore, reverse=True)
@@ -139,7 +139,7 @@ class MahjongScore:
         score = ""
         rank = ""
         for i, v in enumerate(userscores):
-            name += v.name + "\n"
+            name += "`%s`"%v.name + "\n"
             score += "`%6.1f (%6.1f)`\n"%(v.totalScore/1000, v.totalScore/v.games/1000)
             t, v1, v2, v3, v4 = v.GetGames()
             rank += "`%3d (%03d%%/%03d%%/%03d%%/%03d%%)`\n"%(t, v1, v2, v3, v4)
