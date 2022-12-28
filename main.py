@@ -14,23 +14,23 @@ import asyncio
 from modules.misc import Rice, TodayLuck
 from modules.emote import emote_dict
 
-from modules.utils import SavePartyManager, LoadPartyManager
-from modules.manager import Manager
-PM = Manager()
-
+from modules.kakul.manager import Manager
+from modules.kakul.interface import *
+from modules.kakul.utils import KPMSave, KPMLoad, printl
 from modules.mahjong import MahjongScore
-MS = MahjongScore()
-
 from modules.quality import QualitySim
+from modules.balance import BalanceManager
+KPM = Manager()
+MS = MahjongScore()
 QS = QualitySim()
+BM = BalanceManager()
 
 bot = interactions.Client(TOKEN, intents=interactions.Intents.DEFAULT | interactions.Intents.GUILD_MESSAGE_CONTENT)
 
-
 @bot.event
 async def on_ready():
-    LoadPartyManager(PM)
-    print(PM.pingList)
+    KPMLoad("./data/kakul/latest.save", KPM)
+    printl("Bot Prepared!")
     print("Bot is prepared!")
 
 @bot.event
@@ -48,9 +48,15 @@ async def on_message_create(ctx: interactions.CommandContext):
 
     # Add user to pinglist if not in it
     name = str(ctx.author)
-    if name not in PM.pingList:
-        PM.pingList[name] = ctx.author.mention
-        print("Added PingList:"% name)
+    try:
+        for key in KPM.users:
+            if name == KPM.users[key].name:
+                KPM.users[key].mention = ctx.author.mention
+        # if name not in PM.pingList:
+        #     PM.pingList[name] = ctx.author.mention
+        #     print("Added PingList:"% name)
+    except:
+        pass
     # if ctx.content in emote_dict:
     #     await ctx.send(emote_dict[ctx.content])
 
@@ -72,6 +78,7 @@ async def on_message_create(ctx: interactions.CommandContext):
     ]
 )
 async def CommandRice(ctx: interactions.CommandContext, value: int):
+    print("= CommandRice : %s"%value)
     embeds = Rice(value)
     await ctx.send("", embeds=embeds)
 
@@ -82,6 +89,7 @@ async def CommandRice(ctx: interactions.CommandContext, value: int):
     scope=GUILD
 )
 async def CommandLuck(ctx: interactions.CommandContext):
+    print("= CommandLuck")
     embeds = TodayLuck()
     await ctx.send("", embeds=embeds)
 
@@ -93,11 +101,43 @@ async def CommandLuck(ctx: interactions.CommandContext):
     name="party_generate",
     description="파티를 결성합니다 (관리자용)",
     default_member_permissions=interactions.Permissions.ADMINISTRATOR,
-    scope=GUILD
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="cubes",
+            description="테스트할 경우의 수 (캐릭수**1.2*1000)",
+            type=interactions.OptionType.INTEGER,
+            required=False
+        ),
+        interactions.Option(
+            name="wpb",
+            description="파워 밸런스 계수 (30)",
+            type=interactions.OptionType.INTEGER,
+            required=False
+        ),
+        interactions.Option(
+            name="wvs",
+            description="폿 필수 계수 (20)",
+            type=interactions.OptionType.INTEGER,
+            required=False
+        ),
+        interactions.Option(
+            name="wvd",
+            description="직업 중복 계수 (20)",
+            type=interactions.OptionType.INTEGER,
+            required=False
+        ),
+        interactions.Option(
+            name="wg",
+            description="다그룹 포함 계수 (30)",
+            type=interactions.OptionType.INTEGER,
+            required=False
+        )
+    ]
 )
-async def CommandPartyGenerate(ctx: interactions.CommandContext):
-    embeds = PM.PartyGenerate()
-    SavePartyManager(PM)
+async def CommandPartyGenerate(ctx: interactions.CommandContext, cubes: int = 0, wpb: int = 30, wvs: int = 20, wvd: int = 20, wg: int = 30):
+    await ctx.defer(ephemeral = True)
+    embeds = KPMPartyGenerate(KPM, cubes, wpb, wvs, wvd, wg)
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -107,7 +147,7 @@ async def CommandPartyGenerate(ctx: interactions.CommandContext):
     scope=GUILD
 )
 async def CommandPartyReset(ctx: interactions.CommandContext):
-    embeds = PM.ResetParty()
+    embeds = KPMResetParty(KPM)
     await ctx.send("", embeds=embeds)
 
 
@@ -118,16 +158,9 @@ async def CommandPartyReset(ctx: interactions.CommandContext):
     scope=GUILD
 )
 async def CommandPartyCallEveryone(ctx: interactions.CommandContext):
-    msg = ""
-    pl = []
-    for i in PM.characters:
-        pl.append(i.owner)
-    pl = list(set(pl))
-    for i in pl:
-        msg += PM.pingList[i] + " "
-    msg += "\n이번 주 쿠크세이튼 파티 목록입니다."
-    embeds = PM.PartyList(False, None)
-    await ctx.send(msg, embeds=embeds)
+    msg = KPMCallEveryBody(KPM)
+    msg += "\n쿠크세이튼 파티가 결성되었습니다. `/party_list` 명령어로 파티원을 확인하세요."
+    await ctx.send(msg)
 
 @bot.command(
     name="party_list",
@@ -145,13 +178,13 @@ async def CommandPartyCallEveryone(ctx: interactions.CommandContext):
             description="값을 입력할 경우, 해당 유저가 포함된 파티만 보여줍니다.",
             type=interactions.OptionType.USER,
             required=False
-        ),
+        )
     ]
 )
 async def CommandPartyList(ctx: interactions.CommandContext, uncleared: bool = False, owner: interactions.Member = None):
     if owner is not None:
         owner = str(owner.user)
-    embeds = PM.PartyList(uncleared, owner)
+    embeds = KPMPartyList(KPM, uncleared, owner)
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -165,13 +198,20 @@ async def CommandPartyList(ctx: interactions.CommandContext, uncleared: bool = F
             type=interactions.OptionType.USER,
             required=False
         ),
+        interactions.Option(
+            name="sort",
+            description="유저별로 정리해서 보여줍니다.",
+            type=interactions.OptionType.BOOLEAN,
+            required=False
+        ),
     ]
 )
-async def CommandCharacterList(ctx: interactions.CommandContext, owner: interactions.Member = None):
+async def CommandCharacterList(ctx: interactions.CommandContext, owner: interactions.Member = None, sort: bool = True):
     if owner is not None:
         owner = str(owner.user)
-    embeds = PM.CharacterList(owner)
+    embeds = KPMCharacterList(KPM, owner, sort)
     await ctx.send("", embeds=embeds)
+
 
 @bot.command(
     name="character_add",
@@ -197,12 +237,6 @@ async def CommandCharacterList(ctx: interactions.CommandContext, owner: interact
             required=False
         ),
         interactions.Option(
-            name="power",
-            description="추가할 캐릭터의 딜량 (미입력시 자동으로 딜량은 1.0입니다)",
-            type=interactions.OptionType.NUMBER,
-            required=False
-        ),
-        interactions.Option(
             name="is_essential",
             description="파티에 필수 포함 여부 (미입력시 파티에 우선적으로 배정되도록 설정합니다)",
             type=interactions.OptionType.BOOLEAN,
@@ -215,8 +249,7 @@ async def CommandCharacterAdd(ctx: interactions.CommandContext, name: str, role:
         owner = str(ctx.author.user)
     else:
         owner = str(owner.user)
-    embeds = PM.AddCharacter(owner, name, role, is_essential, power)
-    SavePartyManager(PM)
+    embeds = KPMAddCharacter(KPM, name, role, owner, is_essential)
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -229,12 +262,6 @@ async def CommandCharacterAdd(ctx: interactions.CommandContext, name: str, role:
             description="변경할 캐릭터의 이름",
             type=interactions.OptionType.STRING,
             required=True
-        ),
-        interactions.Option(
-            name="power",
-            description="변경할 딜량",
-            type=interactions.OptionType.NUMBER,
-            required=False
         ),
         interactions.Option(
             name="is_essential",
@@ -250,9 +277,26 @@ async def CommandCharacterAdd(ctx: interactions.CommandContext, name: str, role:
         )
     ]        
 )
-async def CommandCharacterChangeInfo(ctx: interactions.CommandContext, name: str, power: float = None, is_essential: bool = None, is_support: bool = None):
-    embeds = PM.ChangeCharacterInfo(name, power, is_essential, is_support)
-    SavePartyManager(PM)
+async def CommandCharacterChangeInfo(ctx: interactions.CommandContext, name: str, is_essential: bool = None, is_support: bool = None):
+    embeds = KPMEditCharacter(KPM, name, is_essential, is_support)
+    await ctx.send("", embeds=embeds)
+
+@bot.command(
+    name="character_update",
+    description="캐릭터의 딜량 정보를 전투정보실에서 불러와 변경합니다",
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="name",
+            description="업데이트할 캐릭터의 이름, 없으면 전체 업데이트",
+            type=interactions.OptionType.STRING,
+            required=False
+        )
+    ] 
+)
+async def CommandUpdateCharacter(ctx: interactions.CommandContext, name: str = None):
+    await ctx.defer(ephemeral = True)
+    embeds = KPMUpdateCharacter(KPM, name)
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -269,8 +313,7 @@ async def CommandCharacterChangeInfo(ctx: interactions.CommandContext, name: str
     ]
 )
 async def CommandCharacterRemove(ctx: interactions.CommandContext, name: str):
-    embeds = PM.RemoveCharacter(name)
-    SavePartyManager(PM)
+    embeds = KPMRemoveCharacter(KPM, name)
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -287,8 +330,7 @@ async def CommandCharacterRemove(ctx: interactions.CommandContext, name: str):
     ]
 )
 async def CommandSetPartyClear(ctx: interactions.CommandContext, number: int):
-    embeds = PM.SetPartyClear(number, True)
-    SavePartyManager(PM)
+    embeds = KPMSetPartyClearState(KPM, number, True)
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -304,9 +346,8 @@ async def CommandSetPartyClear(ctx: interactions.CommandContext, number: int):
         )
     ]
 )
-async def CommandSetPartyClear(ctx: interactions.CommandContext, number: int):
-    embeds = PM.SetPartyClear(number, False)
-    SavePartyManager(PM)
+async def CommandSetPartyClearX(ctx: interactions.CommandContext, number: int):
+    embeds = KPMSetPartyClearState(KPM, number, False)
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -323,7 +364,7 @@ async def CommandSetPartyClear(ctx: interactions.CommandContext, number: int):
     ]
 )
 async def CommandPartyCall(ctx: interactions.CommandContext, number: int):
-    text, embeds = PM.PartyCall(number)
+    text, embeds = KPMPartyCall(KPM, number)
     await ctx.send(text, embeds=embeds)
 
 @bot.command(
@@ -346,8 +387,7 @@ async def CommandPartyCall(ctx: interactions.CommandContext, number: int):
     ]
 )
 async def CommandPartyJoin(ctx: interactions.CommandContext, party: int, character: str):
-    embeds = PM.PartyJoin(party, character)
-    SavePartyManager(PM)
+    embeds = KPMPartyJoin(KPM, party, character)
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -363,9 +403,8 @@ async def CommandPartyJoin(ctx: interactions.CommandContext, party: int, charact
         )
     ]
 )
-async def CommandPartyJoin(ctx: interactions.CommandContext, character: str):
-    embeds = PM.PartyLeave(character)
-    SavePartyManager(PM)
+async def CommandPartyLeave(ctx: interactions.CommandContext, character: str):
+    embeds = KPMPartyLeave(KPM, character)
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -388,14 +427,20 @@ async def CommandPartyJoin(ctx: interactions.CommandContext, character: str):
     ]
 )
 async def CommandPartySwap(ctx: interactions.CommandContext, name1: str, name2: str):
-    embeds = PM.PartySwap(name1, name2)
-    SavePartyManager(PM)
+    embeds = KPMPartySwap(KPM, name1, name2)
     await ctx.send("", embeds=embeds)
 
-
+@bot.command(
+    name="party_add",
+    description="빈 파티를 하나 추가합니다",
+    scope=GUILD
+)
+async def CommandPartyAdd(ctx: interactions.CommandContext):
+    embeds = KPMPartyAdd(KPM)
+    await ctx.send("", embeds=embeds)
 
 @bot.command(
-    name="user_pause",
+    name="user_active",
     description="특정 사용자를 파티 배정에서 제외시킵니다.",
     scope=GUILD,
     options = [
@@ -407,19 +452,41 @@ async def CommandPartySwap(ctx: interactions.CommandContext, name1: str, name2: 
         ),
         interactions.Option(
             name="state",
-            description="True로 설정시 파티 배정에서 제외됩니다.",
+            description="False로 설정시 파티 배정에서 제외됩니다.",
             type=interactions.OptionType.BOOLEAN,
             required=False
         )
     ]
 )
-async def CommandCharacterAdd(ctx: interactions.CommandContext, owner: interactions.Member = None, state: bool = True):
+async def CommandUserActive(ctx: interactions.CommandContext, owner: interactions.Member = None, state: bool = True):
     if owner is None:
         owner = str(ctx.author.user)
     else:
         owner = str(owner.user)
-    embeds = PM.PauseUser(owner, state)
-    SavePartyManager(PM)
+    embeds = KPMUserActive(KPM, owner, state)
+    await ctx.send("", embeds=embeds)
+
+@bot.command(
+    name="character_active",
+    description="특정 캐릭터를 파티 배정에서 제외시킵니다.",
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="character",
+            description="상태를 변경할 캐릭터",
+            type=interactions.OptionType.STRING,
+            required=True
+        ),
+        interactions.Option(
+            name="state",
+            description="False로 설정시 파티 배정에서 제외됩니다.",
+            type=interactions.OptionType.BOOLEAN,
+            required=True
+        )
+    ]
+)
+async def CommandUserActive(ctx: interactions.CommandContext, character: str, state: bool):
+    embeds = KPMCharacterActive(KPM, character, state)
     await ctx.send("", embeds=embeds)
 
 
@@ -558,7 +625,7 @@ async def CommandQualityUpgrade(ctx: interactions.CommandContext):
     description="품질작 시뮬레이터의 랭킹을 보여줍니다.",
     scope=GUILD
 )
-async def CommandQualityUpgrade(ctx: interactions.CommandContext):
+async def CommandQualityRank(ctx: interactions.CommandContext):
     embeds = QS.GetRank()
     await ctx.send("", embeds=embeds)
 
@@ -694,3 +761,24 @@ async def CommandRemoveRecent(ctx: interactions.CommandContext, amount: int = 10
 
 
 bot.start()
+"""
+# Crontab
+from datetime import datetime
+import threading
+
+
+def checkTime():
+    # This function runs periodically every 1 second
+    threading.Timer(1, checkTime).start()
+
+    now = datetime.now()
+
+    current_time = now.strftime("%H:%M:%S")
+    print("Current Time =", current_time)
+
+    if(current_time == '06:00:00'):  # check if matches with the desired time
+        print('sending message')
+
+
+checkTime()
+"""
