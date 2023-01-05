@@ -9,6 +9,7 @@ source $HOME/.profile
 tmux kill-session -t lostarkbot
 /usr/bin/tmux new-session -d -s lostarkbot 
 
+cd lostarkbot
 
 #/usr/bin/tmux send-keys -t neos "docker container stop $(docker container ls -aq)" C-m
 /usr/bin/tmux send-keys -t lostarkbot "cd ./lostarkbot" C-m
