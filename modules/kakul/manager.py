@@ -71,6 +71,8 @@ class Manager:
         self.leftovers = []
         for party in self.parties:
             for char in party.members:
+                if char in assignedList:
+                    party.members.remove(char)
                 assignedList.append(char)
         for char in self.characters:
             if char not in assignedList:
@@ -80,8 +82,15 @@ class Manager:
     def AddCharacterToParty(self, character, partyIndex, strict = False):
         if character not in self.characters:
             return False
-        if character in self.leftovers:
-            return False
+        if character not in self.leftovers:
+            tag = False
+            for party in self.parties:
+                if character in party.members:
+                    party.members.remove(character)
+                    tag = True
+                    break
+            if not tag:
+                return False
         res = self.parties[partyIndex].AddCharacter(character, strict)
         self.Validate()
         return res
@@ -497,6 +506,7 @@ class Manager:
                     else:
                         dealersNS[char.owner].append(char)
 
+
             # Assign sups and deals to the party and get mse
             pps = []
             groups.sort(key=lambda x: x.count, reverse=True)
@@ -505,7 +515,8 @@ class Manager:
             for group in groups:
                 for iv in range(group.count):
                     pps.append(Party(len(pps)))
-                    pps[-1].AddCharacter(group.sups[iv])
+                    if iv < len(group.sups):
+                        pps[-1].AddCharacter(group.sups[iv])
                     for user in group.users:
                         if user in dealers and len(dealers[user]) > 0:
                             v = pps[-1].AddCharacter(dealers[user][0], strict=False)
