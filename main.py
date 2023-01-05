@@ -181,7 +181,7 @@ async def CommandPartyCallEveryone(ctx: interactions.CommandContext):
         )
     ]
 )
-async def CommandPartyList(ctx: interactions.CommandContext, uncleared: bool = False, owner: interactions.Member = None):
+async def CommandPartyList(ctx: interactions.CommandContext, uncleared: bool = True, owner: interactions.Member = None):
     if owner is not None:
         owner = str(owner.user)
     embeds = KPMPartyList(KPM, uncleared, owner)
