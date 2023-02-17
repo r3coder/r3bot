@@ -1,10 +1,6 @@
+data/
+backup/
+logs/*.txt
+*__pycache__
+*_.py
 .env
-*.pkl
-*.pyc
-data/mj/games/*
-data/mj/users/*
-data/mj/yakuman/*
-data/pk/*
-data/pm/*
-data/qs/*
-data/bal/*
