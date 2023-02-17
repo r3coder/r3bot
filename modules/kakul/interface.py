@@ -6,7 +6,7 @@ from ..kakul.loainfo import GetApproxStrength
 from ..kakul.utils import *
 
 
-def KPMPartyGenerate(kpm, ncubes, wpb, wvs, wvd, wg):
+def KPMPartyGenerate(kpm, ncubes, wpb, wvs, wvd, wg, pu, wpu):
     printl("KPMGenerateParty")
     param = dict()
     if ncubes == 0:
@@ -17,6 +17,8 @@ def KPMPartyGenerate(kpm, ncubes, wpb, wvs, wvd, wg):
     param["weight_validsup"] = wvs
     param["weight_validrole"] = wvd
     param["weight_group"] = wg
+    param["weight_preferuser"] = wpu
+    param["preferuser"] = pu
     sco, textt = kpm.GenerateParty(param)
     KPMSave(kpm)
     return interactions.Embed(description="%d개의 큐브를 관측하고, 최선의 결과를 찾았습니다.\n최종 점수 : %s"%(param["sample_steps"], textt), color=Color["white"])
@@ -167,9 +169,9 @@ def KPMEditCharacter(kpm, name, is_essential=None, is_support=None):
     else:
         return interactions.Embed(description="캐릭터를 수정하는데 실패했습니다.", color=Color["red"])
 
-def KPMUpdateCharacter(kpm, name = None):
-    printl(f"KPMUpdateCharacter({name})")
-    kpm.UpdateStrength(name)
+def KPMUpdateCharacter(kpm, name = None, force = False):
+    printl(f"KPMUpdateCharacter({name}, {force})")
+    kpm.UpdateStrength(name, force)
     KPMSave(kpm)
     if name == None:
         return interactions.Embed(description="캐릭터들의 정보가 업데이트되었습니다.", color=Color["white"])
@@ -256,7 +258,7 @@ def KPMPartyAdd(kpm):
         return interactions.Embed(description="빈 파티를 추가하는데 실패했습니다", color=Color["red"])
 
 def KPMUserActive(kpm, user, state):
-    printl(f"KPMUserPause({user}, {state})")
+    printl(f"KPMUserActive({user}, {state})")
     if not isinstance(state, bool):
         return interactions.Embed(description="상태가 잘못되었습니다", color=Color["red"])
     res = kpm.SetUserActive(user, state)

@@ -205,13 +205,17 @@ class Manager:
         self.users.remove(user)
         return True
         
-    def UpdateStrength(self, name, verbose = False):
+    def UpdateStrength(self, name, force = False, verbose = False):
         for c in self.characters:
             if name != None and c.name != name:
                 continue
             appx = GetApproxStrength(c.name) / 30000
-            # if c.power < appx:
-            c.power = appx 
+            if force:
+                if c.power < appx:
+                    c.power = appx
+            else:
+                c.power = appx
+            
             if verbose:
                 printl("Updated %s's strength to %2.1f" % (c.name, c.power))
 
@@ -308,6 +312,16 @@ class Manager:
         best_ind = 0
         best_text = ""
         best_cube = None
+
+        weight_preferuser = 10 if "weight_preferuser" not in parameters else parameters["weight_preferuser"]
+        try:
+            preferuser = parameters["preferuser"].split(",")
+        except:
+            preferuser = []            
+        weight_powerbal = 30 if "weight_powerbal" not in parameters else parameters["weight_powerbal"]
+        weight_validsup = 20 if "weight_validsup" not in parameters else parameters["weight_validsup"]
+        weight_validrole = 20 if "weight_validrole" not in parameters else parameters["weight_validrole"]
+        weight_group = 30 if "weight_group" not in parameters else parameters["weight_group"]
 
         sample_steps = 4096 if "sample_steps" not in parameters else parameters["sample_steps"]
         
@@ -533,12 +547,8 @@ class Manager:
                 ttStr += party.GetPartyPower()
             averageStr = ttStr / len(pps)
 
-            score_powerbal, score_validsup, score_validrole = 0, 0, 0
+            score_powerbal, score_validsup, score_validrole, score_preferuser = 0, 0, 0, 0
             score_group = 0
-            weight_powerbal = 30 if "weight_powerbal" not in parameters else parameters["weight_powerbal"]
-            weight_validsup = 20 if "weight_validsup" not in parameters else parameters["weight_validsup"]
-            weight_validrole = 20 if "weight_validrole" not in parameters else parameters["weight_validrole"]
-            weight_group = 30 if "weight_group" not in parameters else parameters["weight_group"]
             for party in pps:
                 pw = party.GetPartyPower()
                 if pw < averageStr:
@@ -549,6 +559,16 @@ class Manager:
                     score_validrole += weight_validrole
                 if party.isSupporterExists():
                     score_validsup += weight_validsup
+                
+                # preferuser
+                flag_pu = True
+                for member in party.members:
+                    if member.owner not in preferuser:
+                        flag_pu = False
+                        break
+                if flag_pu:
+                    score_preferuser += weight_preferuser / len(pps)
+
 
             # Score based on group
             for key in appears:
@@ -560,8 +580,8 @@ class Manager:
             score_powerbal = max(weight_powerbal - score_powerbal / len(pps), 0)
 
             score_group = max(0, weight_group - score_group / len(appears))
-            
-            cube.score += score_powerbal + score_validsup + score_validrole + score_group
+
+            cube.score += score_powerbal + score_validsup + score_validrole + score_group + score_preferuser
                 
             tott += 1
             pts += "%2.1f "%(cube.score)
@@ -586,7 +606,7 @@ class Manager:
                 best_score = cube.score
                 best_cube = cube
                 best_ind = step
-                best_text = "%5.1f=(PB)%4.1f+(VS)%4.1f+(VR)%4.1f+(GR)%4.1f"%(cube.score, score_powerbal, score_validsup, score_validrole, score_group)
+                best_text = "%5.1f=(PB)%4.1f+(VS)%4.1f+(VR)%4.1f+(GR)%4.1f+(PU)%4.1f"%(cube.score, score_powerbal, score_validsup, score_validrole, score_group, score_preferuser)
 
                 printl("Cube #%d, Best Score Updated: %s"%(step, best_text))
 
