@@ -9,7 +9,10 @@ source $HOME/.profile
 tmux kill-session -t lostarkbot
 /usr/bin/tmux new-session -d -s lostarkbot 
 
-cd lostarkbot
+cd $HOME/lostarkbot
+
+backup_dir=$(date +'%Y%m%d')
+cp data/kakul/latest.save data/kakul/$backup_dir.save
 
 #/usr/bin/tmux send-keys -t neos "docker container stop $(docker container ls -aq)" C-m
 /usr/bin/tmux send-keys -t lostarkbot "cd ./lostarkbot" C-m
