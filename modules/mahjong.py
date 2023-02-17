@@ -84,7 +84,7 @@ class MahjongScore:
         time = str(timestamp).replace(" ", "_").replace("-","").replace(":","")
 
         if score[0] + score[1] + score[2] + score[3] != 0:
-            return interactions.Embed(description="점수의 합이 0이 아닙니다", color=Color["red"])
+            return interactions.Embed(description="점수의 합이 0이 아닙니다. 합계: %d 점입니다."%(score[0] + score[1] + score[2] + score[3]), color=Color["red"])
 
         with open(db_base + "games/" + time, "a") as f:
             f.write("%s,%s,%s,%s\n"%(name[0], name[1], name[2], name[3]))
