@@ -1,12 +1,13 @@
 
 class User:
-    def __init__(self, name, ping, active):
+    def __init__(self, name, ping, active, avoiddays):
         self.name = name
         self.active = active
         self.ping = ping
+        self.avoiddays = avoiddays
     
     def __repr__(self):
-        return f"{self.name} ({':o:' if self.active else ':x:'}, {self.ping})"
+        return f"{self.name} ({':o:' if self.active else ':x:'}, {self.ping}, {self.avoiddays})"
 
     def __eq__(self, other):
         if type(other) != type(self):

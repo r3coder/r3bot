@@ -6,6 +6,7 @@ class Party:
         self.members = []
         self.cleared = False
         self.idx = idx
+        self.daytime = ""
 
     def isOwnerExists(self, owner):
         for member in self.members:
@@ -99,7 +100,7 @@ class Party:
 
     def __repr__(self):
         v = ":o:" if self.cleared else ":x:"
-        s = "파티 %d: %2.2f %d/4 "%(self.idx+1, self.GetPartyPower(), len(self.members))+ v + " ["
+        s = "파티 %d: %2.2f %d/4 %s "%(self.idx+1, self.GetPartyPower(), len(self.members), self.daytime)+ v + " ["
         for member in self.members:
             s += member.StrShort() + ", "
         s = s[:-2] + "]"
@@ -123,12 +124,9 @@ class Party:
 
     def StrFull(self):
         v = ":o:" if self.cleared else ":x:"
-        s = "인원:%d/4, 딜량:%2.2f, 클리어:%s\n"%(len(self.members), self.GetPartyPower(), v)
+        s = "인원:%d/4, 딜량:%2.2f, 클리어:%s, 시간:%s\n"%(len(self.members), self.GetPartyPower(), v, self.daytime)
         for member in self.members:
             s += "  " + member.StrFull() + "\n"
         return s
     
-    def Embed(self):
-        embed = interactions.Embed(title=f"파티 {self.idx}", description=self.__repr__())
-
     

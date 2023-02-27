@@ -16,7 +16,7 @@ from modules.emote import emote_dict
 
 from modules.kakul.manager import Manager
 from modules.kakul.interface import *
-from modules.kakul.utils import KPMSave, KPMLoad, printl
+from modules.kakul.utils import KPMSave, KPMLoad, printl, _ParseTimeText
 from modules.mahjong import MahjongScore
 from modules.quality import QualitySim
 from modules.balance import BalanceManager
@@ -27,11 +27,46 @@ BM = BalanceManager()
 
 bot = interactions.Client(TOKEN, intents=interactions.Intents.DEFAULT | interactions.Intents.GUILD_MESSAGE_CONTENT)
 
+
+from interactions.ext.tasks import IntervalTrigger, create_task
+from datetime import datetime, timedelta
+
+CHANNEL_ID = 970775035159654420
+# CHANNEL_ID = 882546719194251274 Test Channel
+
+@create_task(IntervalTrigger(60))
+async def CallTask():
+    # Get channel by name
+    channel = await interactions.get(bot, interactions.Channel, object_id=CHANNEL_ID)
+    # await channel.send(":)")
+    # Call Everyone on Wed 10:00:15 (GMT+9)
+    if datetime.today().weekday() == 2 and datetime.today().hour == 1 and datetime.today().minute == 5:
+        printl("Something happened!")
+        KPMPartyGenerate(KPM)
+    if datetime.today().weekday() == 2 and datetime.today().hour == 1 and datetime.today().minute == 15:
+        msg = KPMCallEveryBody(KPM)
+        msg += "\n쿠크세이튼 파티가 결성되었습니다. `/파티목록` 명령어로 파티원을 확인하세요."
+        await channel.send(msg)
+    if len(KPM.parties) > 0:
+        v = ""
+        for pid in range(len(KPM.parties)):
+            if v != KPM.parties[pid].GetPartyOwnerString():
+                if KPM.parties[pid].cleared == False:
+                    KPM.parties[pid].daytime
+                    day, hour, minute = _ParseTimeText(KPM.parties[pid].daytime)
+                    # print(day, hour, minute)
+                    if datetime.today().weekday() == day and datetime.today().hour == hour and datetime.today().minute == minute:
+                        text, embeds = KPMPartyCall(KPM, pid+1)
+                        await channel.send(text, embeds=embeds)
+            v = KPM.parties[pid].GetPartyOwnerString()
+
+        # Call party 
+
 @bot.event
 async def on_ready():
     KPMLoad("./data/kakul/latest.save", KPM)
+    CallTask.start()
     printl("Bot Prepared!")
-    print("Bot is prepared!")
 
 @bot.event
 async def on_message_create(ctx: interactions.CommandContext):
@@ -99,6 +134,40 @@ async def CommandLuck(ctx: interactions.CommandContext):
 
 ##################################################
 # Party Manager Functions
+
+@bot.command(
+    name="set_channel",
+    name_localizations={"ko": "채널설정"},
+    description="채널을 설정합니다 (관리자용)",
+    default_member_permissions=interactions.Permissions.ADMINISTRATOR,
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="channel",
+            description="채널을 선택합니다",
+            type=interactions.OptionType.CHANNEL,
+            required=True,
+            name_localizations={"ko": "채널"}
+        ),
+    ]
+)
+async def CommandSetChannel(ctx: interactions.CommandContext, channel: interactions.Channel):
+    if channel.type != interactions.ChannelType.GUILD_TEXT:
+        await ctx.send("텍스트 채널을 선택해주세요.")
+        return
+    if channel.guild_id != ctx.guild_id:
+        await ctx.send("서버 내의 채널을 선택해주세요.")
+        return
+    
+    KPM.channel = ctx.channel.id
+    KPMSave(KPM)
+    # send message as embed
+    await ctx.send(embeds=interactions.Embed(
+        title="채널이 설정되었습니다.",
+        description="채널: %s"%channel.mention,
+        color=0x00ff00
+    ))
+
 
 @bot.command(
     name="party_generate",
@@ -184,7 +253,7 @@ async def CommandPartyReset(ctx: interactions.CommandContext):
 )
 async def CommandPartyCallEveryone(ctx: interactions.CommandContext):
     msg = KPMCallEveryBody(KPM)
-    msg += "\n쿠크세이튼 파티가 결성되었습니다. `/party_list` 명령어로 파티원을 확인하세요."
+    msg += "\n쿠크세이튼 파티가 결성되었습니다. `/파티목록` 명령어로 파티원을 확인하세요."
     await ctx.send(msg)
 
 @bot.command(
@@ -533,6 +602,39 @@ async def CommandUserActive(ctx: interactions.CommandContext, owner: interaction
     embeds = KPMUserActive(KPM, owner, state)
     await ctx.send("", embeds=embeds)
 
+
+@bot.command(
+    name="user_avoidday",
+    name_localizations={"ko": "사용자기피요일"},
+    description="피하고 싶은 요일을 최대 3개까지 설정 가능합니다.",
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="avoiddays",
+            description="기피할 요일을 입력합니다. 예시) 수목금",
+            type=interactions.OptionType.STRING,
+            required=True,
+            name_localizations={"ko": "기피요일"}
+        ),
+        interactions.Option(
+            name="owner",
+            description="상태를 변경할 유저",
+            type=interactions.OptionType.USER,
+            required=False,
+            name_localizations={"ko": "유저"}
+        )
+    ]
+)
+async def CommandUserAvoidDays(ctx: interactions.CommandContext, avoiddays: str = "", owner: interactions.Member = None):
+    if owner is None:
+        owner = str(ctx.author.user.username)
+    else:
+        owner = str(owner.user.username)
+    embeds = KPMUserSetAvoidDays(KPM, owner, avoiddays)
+    await ctx.send("", embeds=embeds)
+
+
+
 @bot.command(
     name="character_active",
     name_localizations={"ko": "캐릭터활성화"},
@@ -559,6 +661,32 @@ async def CommandCharaActive(ctx: interactions.CommandContext, character: str, s
     embeds = KPMCharacterActive(KPM, character, state)
     await ctx.send("", embeds=embeds)
 
+
+@bot.command(
+    name="character_essential",
+    name_localizations={"ko": "캐릭터필수설정"},
+    description="특정 캐릭터를 파티 배정에서 필수로 설정합니다.",
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="character",
+            description="상태를 변경할 캐릭터",
+            type=interactions.OptionType.STRING,
+            required=True,
+            name_localizations={"ko": "캐릭터"}
+        ),
+        interactions.Option(
+            name="state",
+            description="False로 설정시 파티 배정에 무조건 포함되지는 않을 수 있습니다.",
+            type=interactions.OptionType.BOOLEAN,
+            required=True,
+            name_localizations={"ko": "상태"}
+        )
+    ]
+)
+async def CommandCharaEssential(ctx: interactions.CommandContext, character: str, state: bool):
+    embeds = KPMCharacterEssential(KPM, character, state)
+    await ctx.send("", embeds=embeds)
 
 
 ##################################################

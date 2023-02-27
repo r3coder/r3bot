@@ -6,7 +6,7 @@ from ..kakul.loainfo import GetApproxStrength
 from ..kakul.utils import *
 
 
-def KPMPartyGenerate(kpm, ncubes, wpb, wvs, wvd, wg, pu, wpu):
+def KPMPartyGenerate(kpm, ncubes=0, wpb=30, wvs=20, wvd=20, wg=30, pu="", wpu=10):
     printl("KPMGenerateParty")
     param = dict()
     if ncubes == 0:
@@ -59,10 +59,6 @@ def KPMPartyList(kpm, uncleared=True, owner=None):
     ggs = dict()
 
     for ind in range(len(kpm.parties)):
-        # key = ""
-        # for v in kpm.parties[ind].members:
-        #     key += "%s,"%v.owner
-        # key = key[:-1]
         key = kpm.parties[ind].GetPartyOwnerString()
         if key in ggs:
             ggs[key].append(ind)
@@ -88,8 +84,9 @@ def KPMPartyList(kpm, uncleared=True, owner=None):
                 val2 += "%s\n"%(p.ShortStr())
             else:
                 val += "%s\n"%(p.ShortStr())
-        vv = "%d연공"%len(pps) if len(pps) > 1 else ""
-        embed.add_field(name="그룹 %d [%s] %s"%(gind, key, vv), value=val, inline=False)
+        vv = " %d연공"%len(pps) if len(pps) > 1 else " "
+        tt = " " + pps[0].daytime
+        embed.add_field(name="그룹 %d [%s]%s%s"%(gind, key, vv, tt), value=val, inline=False)
         if val2 != "":
             embed.add_field(name="===", value=val2, inline=False)
 
@@ -115,17 +112,22 @@ def KPMCharacterList(kpm, owner, sort=True):
         embed = interactions.Embed(title = "캐릭터 목록", description = "총 %d개의 캐릭터가 있습니다."%len(kpm.characters), color=Color["blue"])
         for user in kpm.users:
             s = ""
-            cnt, cntt = 0, 0
+            cn, cna = 0, 0
             for char in kpm.characters:
                 if owner != None and char.owner != owner:
                     continue
                 if char.owner == user.name:
                     s += "%s\n"%char.StrFull()
-                    if char.essential:
-                        cnt += 1
-                    cntt += 1
+                    if char.active and char.essential:
+                        cn += 1
+                    cna += 1
             if s != "":
-                embed.add_field(name="%s의 캐릭터 %d개 (예비 포함 %d개)"%(user.name, cnt, cntt), value=s, inline=False)
+                nm = "%s의 캐릭터 (필수:%d/전체:%d)"%(user.name, cn, cna)
+                if user.active == False:
+                    nm += ", 배정 중지됨"
+                if user.avoiddays != "":
+                    nm += ", 기피요일: %s"%user.avoiddays
+                embed.add_field(name=nm, value=s, inline=False)
         return embed
     else:
         s = ""
@@ -268,6 +270,22 @@ def KPMUserActive(kpm, user, state):
     else:
         return interactions.Embed(description="유저 배정 상태 변경에 실패했습니다.", color=Color["red"])
 
+
+def KPMUserSetAvoidDays(kpm, owner, avoiddays):
+    printl(f"KPMUserSetAvoidDays({owner}, {avoiddays})")
+    if len(avoiddays) > 3:
+        return interactions.Embed(description="요일은 3개까지만 설정할 수 있습니다", color=Color["red"])
+    for stri in avoiddays:
+        if stri not in ["월", "화", "수", "목", "금", "토", "일"]:
+            return interactions.Embed(description="요일이 잘못되었습니다", color=Color["red"])
+    res = kpm.SetUserAvoidDays(owner, avoiddays)
+    KPMSave(kpm)
+    if res:
+        return interactions.Embed(description="%s의 기피 요일을 '%s'요일로 설정했습니다."%(owner, avoiddays), color=Color["green"])
+    else:
+        return interactions.Embed(description="기피 요일 설정에 실패했습니다.", color=Color["red"])
+        
+
 def KPMCharacterActive(kpm, character, state):
     printl(f"KPMCharacterActive({character}, {state})")
     if not isinstance(state, bool):
@@ -278,3 +296,14 @@ def KPMCharacterActive(kpm, character, state):
         return interactions.Embed(description="%s를 파티 배정에서 %s."%(character, "포함시켰습니다" if state else "제외시켰습니다"), color=Color["green"])
     else:
         return interactions.Embed(description="캐릭터 배정 상태 변경에 실패했습니다.", color=Color["red"])
+
+def KPMCharacterEssential(kpm, character, state):
+    printl(f"KPMCharacterEssential({character}, {state})")
+    if not isinstance(state, bool):
+        return interactions.Embed(description="상태가 잘못되었습니다", color=Color["red"])
+    res = kpm.SetCharacterEssential(character, state)
+    KPMSave(kpm)
+    if res:
+        return interactions.Embed(description="%s를 파티 배정에서 %s."%(character, "필수로 설정했습니다" if state else "필수로 설정하지 않았습니다"), color=Color["green"])
+    else:
+        return interactions.Embed(description="캐릭터 필수 설정 변경에 실패했습니다.", color=Color["red"])

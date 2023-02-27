@@ -37,8 +37,37 @@ class Group:
     users: list = field(default_factory=list)
     sups: list = field(default_factory=list)
 
+
+def GetTextTime(ind):
+    days = ["수", "목", "금", "토", "일", "월", "화"]
+    return days[ind//72] + " " + "%02d:%02d"%((ind%72)//3+10, ind%3*20)
+
+# Time starts on 10:00 AM, Wed (End of lost ark maintenance)
+# Each time slot is 20 minutes
+def GetAllTimesWithoutDay(days):
+    v = []
+    if "수" not in days:
+        v.extend(range(     12*3,     15*3)) # 22:00 ~ 25:00
+    if "목" not in days:
+        v.extend(range(72*1+12*3,72*1+15*3)) # 22:00 ~ 25:00
+    if "금" not in days:
+        v.extend(range(72*2+12*3,72*2+15*3)) # 22:00 ~ 25:00
+    if "토" not in days:
+        v.extend(range(72*3+ 6*3,72*3+ 8*3)) # 16:00 ~ 18:00
+        v.extend(range(72*3+14*3,72*3+16*3)) # 24:00 ~ 26:00
+    if "일" not in days:
+        v.extend(range(72*4+ 6*3,72*4+ 8*3)) # 16:00 ~ 18:00
+        v.extend(range(72*4+14*3,72*4+16*3)) # 24:00 ~ 26:00
+    if "월" not in days:
+        v.extend(range(72*5+12*3,72*5+15*3)) # 22:00 ~ 25:00
+    if "화" not in days:
+        v.extend(range(72*6+12*3,72*6+15*3)) # 22:00 ~ 25:00
+    return v
+
+
 class Manager:
     def __init__(self):
+        self.channel = None # Channel id
         self.characters = [] # list of Character
         self.users = [] # list of users
 
@@ -147,9 +176,10 @@ class Manager:
         self.parties.append(Party(len(self.parties)))
         return True
 
-    def AddPartyRaw(self, names, clear):
+    def AddPartyRaw(self, names, clear, daytime):
         self.parties.append(Party(len(self.parties)))
         self.parties[-1].cleared = clear
+        self.parties[-1].daytime = daytime
         for name in names:
             v = self.GetCharacterByName(name)
             self.parties[-1].AddCharacter(self.GetCharacterByName(name), strict=False)
@@ -188,8 +218,8 @@ class Manager:
                 break
         return False
 
-    def AddUserRaw(self, name, ping, active):
-        self.users.append(User(name, ping, active))
+    def AddUserRaw(self, name, ping, active, avoiddays):
+        self.users.append(User(name, ping, active, avoiddays))
 
     def AddUser(self, user):
         if user in self.users:
@@ -254,6 +284,13 @@ class Manager:
                 user.active = state
                 return True
         return False
+    
+    def SetUserAvoidDays(self, name, days):
+        for user in self.users:
+            if user.name == name:
+                user.avoiddays = days
+                return True
+        return False
 
     def SetCharacterActive(self, name, state):
         for character in self.characters:
@@ -262,6 +299,12 @@ class Manager:
                 return True
         return False
 
+    def SetCharacterEssential(self, name, state):
+        for character in self.characters:
+            if character.name == name:
+                character.essential = state
+                return True
+        return False
 
     def GenerateParty(self, parameters = dict(), verbose = False):
         printl("#"*50)
@@ -322,6 +365,7 @@ class Manager:
         weight_validsup = 20 if "weight_validsup" not in parameters else parameters["weight_validsup"]
         weight_validrole = 20 if "weight_validrole" not in parameters else parameters["weight_validrole"]
         weight_group = 30 if "weight_group" not in parameters else parameters["weight_group"]
+        weight_avoiddays = 30 if "weight_avoiddays" not in parameters else parameters["weight_avoiddays"]
 
         sample_steps = 4096 if "sample_steps" not in parameters else parameters["sample_steps"]
         
@@ -521,7 +565,7 @@ class Manager:
                         dealersNS[char.owner].append(char)
 
 
-            # Assign sups and deals to the party and get mse
+            # Assign sups and deals to the party
             pps = []
             groups.sort(key=lambda x: x.count, reverse=True)
             for dealer in dealers:
@@ -540,6 +584,36 @@ class Manager:
                             v = pps[-1].AddCharacter(dealersNS[user][0], strict=False)
                             if v:
                                 dealersNS[user].remove(dealersNS[user][0])
+
+
+            fill = dict()
+            pind = 0
+            for group in groups:
+                sss = []
+                for user in self.users:
+                    if pps[pind].isOwnerExists(user.name):
+                        for day in user.avoiddays:
+                            sss.append(day)
+                times = GetAllTimesWithoutDay(list(set(sss)))
+                for ppi in range(group.count):
+                    for ti in times:
+                        if str(ti) not in fill:
+                            pps[pind+ppi].daytime = GetTextTime(ti)
+                            fill[str(ti)] = []
+                            for user in group.users:    
+                                fill[str(ti)].append(user)
+                            break
+                        else:
+                            flag = False
+                            for user in group.users:
+                                if user in fill[str(ti)]:
+                                    flag = True
+                            if not flag:
+                                pps[pind+ppi].daytime = GetTextTime(ti)
+                                for user in group.users:
+                                    fill[str(ti)].append(user)
+                                break
+                pind += group.count
             
             # Get Score
             ttStr = 0
@@ -547,7 +621,7 @@ class Manager:
                 ttStr += party.GetPartyPower()
             averageStr = ttStr / len(pps)
 
-            score_powerbal, score_validsup, score_validrole, score_preferuser = 0, 0, 0, 0
+            score_powerbal, score_validsup, score_validrole, score_preferuser, score_avoiddays = 0, 0, 0, 0, 0
             score_group = 0
             for party in pps:
                 pw = party.GetPartyPower()
@@ -569,6 +643,13 @@ class Manager:
                 if flag_pu:
                     score_preferuser += weight_preferuser / len(pps)
 
+                # preferday
+                # index of party in pps
+                
+                if party.daytime != "":
+                    score_avoiddays += weight_avoiddays / len(pps)
+
+
 
             # Score based on group
             for key in appears:
@@ -581,7 +662,7 @@ class Manager:
 
             score_group = max(0, weight_group - score_group / len(appears))
 
-            cube.score += score_powerbal + score_validsup + score_validrole + score_group + score_preferuser
+            cube.score += score_powerbal + score_validsup + score_validrole + score_group + score_preferuser + score_avoiddays
                 
             tott += 1
             pts += "%2.1f "%(cube.score)
@@ -606,7 +687,7 @@ class Manager:
                 best_score = cube.score
                 best_cube = cube
                 best_ind = step
-                best_text = "%5.1f=(PB)%4.1f+(VS)%4.1f+(VR)%4.1f+(GR)%4.1f+(PU)%4.1f"%(cube.score, score_powerbal, score_validsup, score_validrole, score_group, score_preferuser)
+                best_text = "%5.1f=(PB)%4.1f+(VS)%4.1f+(VR)%4.1f+(GR)%4.1f+(PU)%4.1f+(AD)%4.1f"%(cube.score, score_powerbal, score_validsup, score_validrole, score_group, score_preferuser, score_avoiddays)
 
                 printl("Cube #%d, Best Score Updated: %s"%(step, best_text))
 

@@ -47,24 +47,39 @@ def GetPowerEmoji(power):
     else:
         return ":flying_saucer:"
 
+# Parse time text as "수 12:00" to day, hour, minute
+def _ParseTimeText(str):
+    day, time = str.split(" ")
+    hour, minute = time.split(":")
+    days = ["월", "화", "수", "목", "금", "토", "일"]
+    try:
+        day = days.index(day)
+        return day, int(hour), int(minute)
+    except:
+        return None, None, None
+
 import pickle
 
 
 def KPMSave(kpm):
     saveDict = {}
+    saveDict["version"] = 1.0
+    saveDict["time"] = time.time()
+    saveDict["channel"] = kpm.channel
 
     saveDict["groups"] = kpm.groups
 
     # "owner/[ownerind]" : name/card/card_demon/pause
     saveDict["user_count"] = len(kpm.users)
     for pind in range(len(kpm.users)):
-        saveDict["owner/" + str(pind)] = [kpm.users[pind].name, kpm.users[pind].ping, kpm.users[pind].active]
+        saveDict["owner/" + str(pind)] = [kpm.users[pind].name, kpm.users[pind].ping, kpm.users[pind].active, kpm.users[pind].avoiddays]
 
     # "party/ind" : clear/name/name/name/name
     saveDict["party_count"] = len(kpm.parties)
     for i in range(len(kpm.parties)):
         saveDict["party/" + str(i)] = [kpm.parties[i].members[j].name for j in range(len(kpm.parties[i].members))]
         saveDict["party/" + str(i) + "/C"] = kpm.parties[i].cleared
+        saveDict["party/" + str(i) + "/D"] = kpm.parties[i].daytime
 
     # "char/[charind]" : name/owner/role/power/essential/isSupportMode
     saveDict["char_count"] = len(kpm.characters)
@@ -82,10 +97,17 @@ def KPMLoad(path, kpm):
     kpm.parties = []
     kpm.leftovers = []
     kpm.groups = pickleData["groups"]
-
+    try:
+        kpm.channel = pickleData["channel"]
+    except:
+        pass
+    
     for i in range(pickleData["user_count"]):
         pp = pickleData["owner/" + str(i)]
-        kpm.AddUserRaw(pp[0], pp[1], pp[2])
+        try:
+            kpm.AddUserRaw(pp[0], pp[1], pp[2], pp[3])
+        except:
+            kpm.AddUserRaw(pp[0], pp[1], pp[2], "")
 
     for i in range(pickleData["char_count"]):
         pp = pickleData["char/" + str(i)]
@@ -94,7 +116,12 @@ def KPMLoad(path, kpm):
     for i in range(pickleData["party_count"]):
         pp = pickleData["party/" + str(i)]
         clear = pickleData["party/" + str(i) + "/C"]
-        kpm.AddPartyRaw(pp, clear)
+        try:
+            daytime = pickleData["party/" + str(i) + "/D"]
+        except:
+            daytime = ""
+        kpm.AddPartyRaw(pp, clear, daytime)
+        # kpm.AddPartyRaw(pp, clear)
 
 
     kpm.Validate()
