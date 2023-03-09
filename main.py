@@ -29,9 +29,10 @@ bot = interactions.Client(TOKEN, intents=interactions.Intents.DEFAULT | interact
 
 
 from interactions.ext.tasks import IntervalTrigger, create_task
-from datetime import datetime, timedelta
+import datetime
 
 CHANNEL_ID = 970775035159654420
+task_started = False
 # CHANNEL_ID = 882546719194251274 Test Channel
 
 @create_task(IntervalTrigger(60))
@@ -40,10 +41,13 @@ async def CallTask():
     channel = await interactions.get(bot, interactions.Channel, object_id=CHANNEL_ID)
     # await channel.send(":)")
     # Call Everyone on Wed 10:00:15 (GMT+9)
-    if datetime.today().weekday() == 2 and datetime.today().hour == 1 and datetime.today().minute == 5:
-        printl("Something happened!")
+    now = datetime.datetime.now() + datetime.timedelta(hours=9)
+
+    # print(f'{now.weekday()} / {now.hour} / {now.minute}')
+    if now.weekday() == 2 and now.hour == 10 and now.minute == 5:
+        printl("Party Generation Started!")
         KPMPartyGenerate(KPM)
-    if datetime.today().weekday() == 2 and datetime.today().hour == 1 and datetime.today().minute == 15:
+    if now.weekday() == 2 and now.hour == 10 and now.minute == 15:
         msg = KPMCallEveryBody(KPM)
         msg += "\n쿠크세이튼 파티가 결성되었습니다. `/파티목록` 명령어로 파티원을 확인하세요."
         await channel.send(msg)
@@ -55,7 +59,7 @@ async def CallTask():
                     KPM.parties[pid].daytime
                     day, hour, minute = _ParseTimeText(KPM.parties[pid].daytime)
                     # print(day, hour, minute)
-                    if datetime.today().weekday() == day and datetime.today().hour == hour and datetime.today().minute == minute:
+                    if now.weekday() == day and now.hour == hour and now.minute == minute:
                         text, embeds = KPMPartyCall(KPM, pid+1)
                         await channel.send(text, embeds=embeds)
             v = KPM.parties[pid].GetPartyOwnerString()
@@ -64,8 +68,12 @@ async def CallTask():
 
 @bot.event
 async def on_ready():
+    global task_started
     KPMLoad("./data/kakul/latest.save", KPM)
-    CallTask.start()
+    if task_started == False:
+        printl("Interval Task Started!")
+        CallTask.start()
+        task_started = True
     printl("Bot Prepared!")
 
 @bot.event
