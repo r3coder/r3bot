@@ -171,9 +171,13 @@ class Manager:
                 self.parties[char1pos].AddCharacter(char1, strict=False)
                 self.parties[char2pos].AddCharacter(char2, strict=False)
                 return False
-                
+    
     def AddEmptyParty(self):
         self.parties.append(Party(len(self.parties)))
+        return True
+    
+    def EditPartyTime(self, partyIndex, daytime):
+        self.parties[partyIndex].daytime = daytime
         return True
 
     def AddPartyRaw(self, names, clear, daytime):

@@ -259,6 +259,20 @@ def KPMPartyAdd(kpm):
     else:
         return interactions.Embed(description="빈 파티를 추가하는데 실패했습니다", color=Color["red"])
 
+def KPMPartyEditTime(kpm, index, time):
+    if not isinstance(index, int) or index <= 0 or index > len(kpm.parties):
+        return interactions.Embed(description="파티 번호가 잘못되었습니다", color=Color["red"])
+    if time[0] not in ["월", "화", "수", "목", "금", "토", "일"]:
+        return interactions.Embed(description="요일이 잘못되었습니다. 양식: (요일 시:분) ex) 월 22:00", color=Color["red"])
+    try:
+        h, m = int(time[2:4]), int(time[5:7])
+    except:
+        return interactions.Embed(description="시간이 잘못되었습니다 양식: (요일 시:분) ex) 월 22:00", color=Color["red"])
+    printl(f"KPMPartyEditTime({index}, {time})")
+    kpm.EditPartyTime(index - 1, time)
+    KPMSave(kpm)
+    return interactions.Embed(description="%d번 파티의 시간이 %s로 변경되었습니다."%(index, time), color=Color["green"])
+
 def KPMUserActive(kpm, user, state):
     printl(f"KPMUserActive({user}, {state})")
     if not isinstance(state, bool):

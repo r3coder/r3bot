@@ -580,6 +580,34 @@ async def CommandPartyAdd(ctx: interactions.CommandContext):
     embeds = KPMPartyAdd(KPM)
     await ctx.send("", embeds=embeds)
 
+
+@bot.command(
+    name="party_edit_time",
+    name_localizations={"ko": "파티시간변경"},
+    description="파티 시작 시간을 변경합니다",
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="party",
+            description="변경할 파티의 번호",
+            type=interactions.OptionType.INTEGER,
+            required=True,
+            name_localizations={"ko": "파티"}
+        ),
+        interactions.Option(
+            name="time",
+            description="시간 (요일 시:분) ex) 월 20:00",
+            type=interactions.OptionType.STRING,
+            required=True,
+            name_localizations={"ko": "시간"}
+        ),
+    ]
+)
+async def CommandPartyEditTime(ctx: interactions.CommandContext, party: int, time: str):
+    embeds = KPMPartyEditTime(KPM, party, time)
+    await ctx.send("", embeds=embeds)
+
+
 @bot.command(
     name="user_active",
     name_localizations={"ko": "사용자활성화"},
