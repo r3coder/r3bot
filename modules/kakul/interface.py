@@ -2,6 +2,7 @@
 import interactions
 
 from ..kakul.character import Character
+from ..kakul.user import User
 from ..kakul.loainfo import GetApproxStrength
 from ..kakul.utils import *
 
@@ -105,7 +106,7 @@ def KPMPartyList(kpm, uncleared=True, owner=None):
         embed.add_field(name="배정을 중지한 유저들", value=v, inline=False)
     return embed
 
-def KPMCharacterList(kpm, owner, sort=True):
+def KPMCharacterList(kpm, owner, summary, sort=True):
     printl("KPMCharacterList")
     kpm.Validate()
     if sort:
@@ -117,7 +118,10 @@ def KPMCharacterList(kpm, owner, sort=True):
                 if owner != None and char.owner != owner:
                     continue
                 if char.owner == user.name:
-                    s += "%s\n"%char.StrFull()
+                    if summary:
+                        s += "%s,"%char.name
+                    else:
+                        s += "%s\n"%char.StrFull()
                     if char.active and char.essential:
                         cn += 1
                     cna += 1
@@ -128,17 +132,24 @@ def KPMCharacterList(kpm, owner, sort=True):
                 if user.avoiddays != "":
                     nm += ", 기피요일: %s"%user.avoiddays
                 embed.add_field(name=nm, value=s, inline=False)
+        if summary:
+            s = s[:-1]
         return embed
     else:
         s = ""
         for char in kpm.characters:
             if owner != None and char.owner != owner:
                 continue
-            s += "%s\n"%char.StrFull()
+            if summary:
+                s += "%s,"%char.name
+            else:
+                s += "%s\n"%char.StrFull()
+        if summary:
+            s = s[:-1]
         embed = interactions.Embed(title = "캐릭터 목록",description = s, color=Color["blue"])
         return embed
 
-def KPMAddCharacter(kpm, name, role, user, essential=True):
+def KPMAddCharacter(kpm, name, role, user, ping, essential=True):
     printl(f"KPMAddCharacter({name}, {role}, {user}, {essential})")
     if not isinstance(name, str):
         return interactions.Embed(description="이름이 잘못되었습니다", color=Color["red"])
@@ -155,6 +166,15 @@ def KPMAddCharacter(kpm, name, role, user, essential=True):
         content = "전투정보실에서 캐릭터의 세기를 불러오는데 실패했습니다."
     c = Character(user, name, role, power, essential)
     res = kpm.AddCharacter(c)
+    # Add User if not exists
+    addUser = True
+    for u in kpm.users:
+        if u.name == user:
+            addUser = False
+            break
+    if addUser:
+        u = User(user, ping, True, "")
+        kpm.users.append(u)
     KPMSave(kpm)
     if res:
         return interactions.Embed(description="성공적으로 추가되었습니다.\n%s"%content, color=Color["green"])

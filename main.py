@@ -306,6 +306,13 @@ async def CommandPartyList(ctx: interactions.CommandContext, uncleared: bool = T
             name_localizations={"ko": "유저"}
         ),
         interactions.Option(
+            name="summary",
+            description="캐릭터 정보를 요약해서 보여줍니다.",
+            type=interactions.OptionType.BOOLEAN,
+            required=False,
+            name_localizations={"ko": "요약"}
+        ),
+        interactions.Option(
             name="sort",
             description="유저별로 정리해서 보여줍니다.",
             type=interactions.OptionType.BOOLEAN,
@@ -314,10 +321,10 @@ async def CommandPartyList(ctx: interactions.CommandContext, uncleared: bool = T
         ),
     ]
 )
-async def CommandCharacterList(ctx: interactions.CommandContext, owner: interactions.Member = None, sort: bool = True):
+async def CommandCharacterList(ctx: interactions.CommandContext, owner: interactions.Member = None, summary: bool = True, sort: bool = True):
     if owner is not None:
         owner = str(owner.user.username)
-    embeds = KPMCharacterList(KPM, owner, sort)
+    embeds = KPMCharacterList(KPM, owner, summary, sort)
     await ctx.send("", embeds=embeds)
 
 
@@ -359,10 +366,12 @@ async def CommandCharacterList(ctx: interactions.CommandContext, owner: interact
 )
 async def CommandCharacterAdd(ctx: interactions.CommandContext, name: str, role: str, owner: interactions.Member = None, is_essential: bool = True):
     if owner is None:
+        ping = ctx.author.mention
         owner = str(ctx.author.user.username)
     else:
+        ping = owner.mention
         owner = str(owner.user.username)
-    embeds = KPMAddCharacter(KPM, name, role, owner, is_essential)
+    embeds = KPMAddCharacter(KPM, name, role, owner, ping, is_essential)
     await ctx.send("", embeds=embeds)
 
 @bot.command(

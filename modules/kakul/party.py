@@ -114,8 +114,8 @@ class Party:
 
     def ShortStr(self):
         v = ":o:" if self.cleared else ":x:"
-        s01 = "`서폿없음`" if self.isSupporterExists() == False else " "
-        s02 = "`인원부족`" if len(self.members) < 4 else " "
+        s01 = " `서폿없음`" if self.isSupporterExists() == False else " "
+        s02 = " `인원부족`" if len(self.members) < 4 else " "
         s = "`#%d` 딜량:`%2.2f` 클리어: %s %s%s"%(self.idx+1, self.GetPartyPower(), v, s01, s02) + "\n"
         for member in self.members:
             s += member.StrShort() + ", "

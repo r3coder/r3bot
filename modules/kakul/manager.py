@@ -186,7 +186,8 @@ class Manager:
         self.parties[-1].daytime = daytime
         for name in names:
             v = self.GetCharacterByName(name)
-            self.parties[-1].AddCharacter(self.GetCharacterByName(name), strict=False)
+            if v is not None:
+                self.parties[-1].AddCharacter(self.GetCharacterByName(name), strict=False)
 
     def AddCharacter(self, character):
         if character in self.characters:
@@ -344,7 +345,6 @@ class Manager:
                     else:
                         ownerDict[char.owner].countNonessential += 1
                         ownerDict[char.owner].charNonessential.append(char)
-
                 else:
                     ownerDict[char.owner] = UserInfo(countEssential=1, charEssential=[char])
         
