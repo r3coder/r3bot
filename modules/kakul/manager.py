@@ -311,6 +311,35 @@ class Manager:
                 return True
         return False
 
+    def RecalculateTime(self):
+        fill = dict()
+        pind = 0
+        for pind in range(len(self.parties)):
+            sss = []
+            for user in self.users:
+                if self.parties[pind].isOwnerExists(user.name):
+                    for day in user.avoiddays:
+                        sss.append(day)
+            times = GetAllTimesWithoutDay(list(set(sss)))
+            for ti in times:
+                if str(ti) not in fill:
+                    self.parties[pind].daytime = GetTextTime(ti)
+                    fill[str(ti)] = []
+                    for user in self.parties[pind].users:    
+                        fill[str(ti)].append(user)
+                    break
+                else:
+                    flag = False
+                    for user in self.parties[pind].users:
+                        if user in fill[str(ti)]:
+                            flag = True
+                    if not flag:
+                        self.parties[pind].daytime = GetTextTime(ti)
+                        for user in self.parties[pind].users:
+                            fill[str(ti)].append(user)
+                        break
+            
+
     def GenerateParty(self, parameters = dict(), verbose = False):
         printl("#"*50)
         printl("Party Generation Algorithm has been started.")
@@ -520,16 +549,25 @@ class Manager:
             
             # get appearances of each user
             appears = dict()
+            onlysups = dict()
             for group in groups:
                 for user in group.users:
                     if user not in appears:
                         appears[user] = 1
+                        onlysups[user] = 100
                     else:
                         appears[user] += 1
+            
+            for char in self.characters:
+                if not char.active:
+                    continue
+                if not char.isSupporter():
+                    onlysups[char.owner] = 0
+            
             # iterate through appears
             groups.sort(key=lambda x: x.count)
             for group in groups:
-                group.users.sort(key=lambda x: appears[x]+10 - len(supporters[x] if x in supporters else []))
+                group.users.sort(key=lambda x: appears[x]+10 - len(supporters[x] if x in supporters else []) + onlysups[x])
                 if group.count > len(group.sups):
                     names = group.users * group.count
                     for user in names:
@@ -628,6 +666,8 @@ class Manager:
             score_powerbal, score_validsup, score_validrole, score_preferuser, score_avoiddays = 0, 0, 0, 0, 0
             score_group = 0
             for party in pps:
+                if len(party.members) == 0: # Ignore if party has empty member
+                    continue
                 pw = party.GetPartyPower()
                 if pw < averageStr:
                     score_powerbal += (averageStr - pw) ** 2 * 2
