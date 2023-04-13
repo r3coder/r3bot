@@ -178,6 +178,18 @@ async def CommandSetChannel(ctx: interactions.CommandContext, channel: interacti
 
 
 @bot.command(
+    name="party_recalculate",
+    name_localizations={"ko": "파티시간재배정"},
+    description="파티 시간을 재배정합니다",
+    default_member_permissions=interactions.Permissions.ADMINISTRATOR,
+    scope=GUILD
+)
+async def CommandPartyRecalculate(ctx: interactions.CommandContext):
+    embeds = KPMRecalculateTime(KPM)
+    await ctx.send("", embeds=embeds)
+
+
+@bot.command(
     name="party_generate",
     name_localizations={"ko": "파티생성"},
     description="파티를 결성합니다 (관리자용)",
