@@ -31,6 +31,14 @@ class Character:
         else:
             return f"{self.name} {rr}{axe} {v}{ex}"
 
+    def GetIcon(self):
+        axe = ":axe:" if self.role in ROLE_SUP_BOTH else ""
+        return ROLE_ICON[ROLE_LIST.index(self.role)] + axe
+
+    def GetIconStatus(self):
+        ex = ":no_entry_sign:" if not self.active else ""
+        v = ":plunger:" if not self.essential else ""
+        return ex + v
 
     def StrOwner(self):
         ex = ",:no_entry_sign:" if not self.active else ""

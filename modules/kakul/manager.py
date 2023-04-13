@@ -315,6 +315,9 @@ class Manager:
         fill = dict()
         pind = 0
         for pind in range(len(self.parties)):
+            users = []
+            for mem in self.parties[pind].members:
+                users.append(mem.owner)
             sss = []
             for user in self.users:
                 if self.parties[pind].isOwnerExists(user.name):
@@ -325,17 +328,17 @@ class Manager:
                 if str(ti) not in fill:
                     self.parties[pind].daytime = GetTextTime(ti)
                     fill[str(ti)] = []
-                    for user in self.parties[pind].users:    
+                    for user in users:    
                         fill[str(ti)].append(user)
                     break
                 else:
                     flag = False
-                    for user in self.parties[pind].users:
+                    for user in users:
                         if user in fill[str(ti)]:
                             flag = True
                     if not flag:
                         self.parties[pind].daytime = GetTextTime(ti)
-                        for user in self.parties[pind].users:
+                        for user in users:
                             fill[str(ti)].append(user)
                         break
             

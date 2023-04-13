@@ -113,27 +113,50 @@ def KPMCharacterList(kpm, owner, summary, sort=True):
         embed = interactions.Embed(title = "캐릭터 목록", description = "총 %d개의 캐릭터가 있습니다."%len(kpm.characters), color=Color["blue"])
         for user in kpm.users:
             s = ""
+            cnt_plu, cnt_ess, cnt_non = 0, 0, 0
+            cnt_plu_sup, cnt_ess_sup, cnt_non_sup = 0, 0, 0
             cn, cna = 0, 0
             for char in kpm.characters:
                 if owner != None and char.owner != owner:
                     continue
                 if char.owner == user.name:
                     if summary:
-                        s += "%s,"%char.name
+                        s += "%s, "%(char.GetIcon() + char.name + char.GetIconStatus())
                     else:
                         s += "%s\n"%char.StrFull()
-                    if char.active and char.essential:
-                        cn += 1
-                    cna += 1
+                    
+                    
+                    if char.isSupporter():
+                        if char.active and char.essential:
+                            cnt_ess_sup += 1
+                        if not char.essential:
+                            cnt_plu_sup += 1
+                        if not char.active:
+                            cnt_non_sup += 1
+                    else:
+                        if char.active and char.essential:
+                            cnt_ess += 1
+                        if not char.essential:
+                            cnt_plu += 1
+                        if not char.active:
+                            cnt_non += 1
+
             if s != "":
-                nm = "%s의 캐릭터 (필수:%d/전체:%d)"%(user.name, cn, cna)
+                if summary:
+                    s = s[:-2]
+                nm = "`%s`의 캐릭터"%user.name
                 if user.active == False:
                     nm += ", 배정 중지됨"
+                else:
+                    if cnt_plu + cnt_plu_sup > 0:
+                        nm += ", 딜러 %d(+%d), 서폿 %d(+%d)"%(cnt_ess, cnt_plu, cnt_ess_sup, cnt_plu_sup)
+                    else:
+                        nm += ", 딜러 %d, 서폿 %d"%(cnt_ess, cnt_ess_sup)
+                    if cnt_non + cnt_non_sup > 0:
+                        nm += ", 비활성 %d"%(cnt_non + cnt_non_sup)
                 if user.avoiddays != "":
                     nm += ", 기피요일: %s"%user.avoiddays
                 embed.add_field(name=nm, value=s, inline=False)
-        if summary:
-            s = s[:-1]
         return embed
     else:
         s = ""
@@ -145,7 +168,7 @@ def KPMCharacterList(kpm, owner, summary, sort=True):
             else:
                 s += "%s\n"%char.StrFull()
         if summary:
-            s = s[:-1]
+            s = s[:-2]
         embed = interactions.Embed(title = "캐릭터 목록",description = s, color=Color["blue"])
         return embed
 
@@ -341,3 +364,11 @@ def KPMCharacterEssential(kpm, character, state):
         return interactions.Embed(description="%s를 파티 배정에서 %s."%(character, "필수로 설정했습니다" if state else "필수로 설정하지 않았습니다"), color=Color["green"])
     else:
         return interactions.Embed(description="캐릭터 필수 설정 변경에 실패했습니다.", color=Color["red"])
+    
+
+def KPMRecalculateTime(kpm):
+    printl(f"KPMRecalculateTime()")
+    kpm.RecalculateTime()
+    KPMSave(kpm)
+    return interactions.Embed(description="파티 시간을 재배정했습니다", color=Color["green"])
+    
