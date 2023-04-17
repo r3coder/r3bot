@@ -1,12 +1,16 @@
 #-*- coding:utf-8 -*-
 
 import time
+import datetime
+def Now():
+    now = datetime.datetime.now() + datetime.timedelta(hours=9)
+    return now
 
-file_path = "logs/log_" + time.strftime("%Y%m%d_%H%M%S", time.localtime()) + ".txt"
+file_path = "logs/log_" + Now().strftime("%Y%m%d_%H%M%S") + ".txt"
 
 def printl(text, end="\n"):
     # Current time as YYYY/MM/DD HH:MM:SS
-    timeT = time.strftime("[%Y/%m/%d %H:%M:%S] ", time.localtime())
+    timeT = Now().strftime("[%Y/%m/%d %H:%M:%S] ")
     print(timeT + text, end="\n")
     with open(file_path, "a") as f:
         f.write(timeT + text + end)
