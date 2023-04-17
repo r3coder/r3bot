@@ -248,7 +248,7 @@ class Manager:
             if name != None and c.name != name:
                 continue
             appx = GetApproxStrength(c.name) / 30000
-            if force:
+            if not force:
                 if c.power < appx:
                     c.power = appx
             else:
