@@ -197,59 +197,45 @@ async def CommandPartyRecalculate(ctx: interactions.CommandContext):
     scope=GUILD,
     options = [
         interactions.Option(
-            name="cubes",
-            description="테스트할 경우의 수 (캐릭수**1.2*1000)",
+            name="sample_steps",
+            description="파티 구성 샘플 수 (1024)",
             type=interactions.OptionType.INTEGER,
             required=False,
-            name_localizations={"ko": "큐브수"}
+            name_localizations={"ko": "샘플"}
         ),
         interactions.Option(
-            name="wpb",
-            description="파워 밸런스 계수 (30)",
+            name="optimize_steps",
+            description="최적화 횟수 (512)",
             type=interactions.OptionType.INTEGER,
             required=False,
-            name_localizations={"ko": "파워계수"}
+            name_localizations={"ko": "최적화"}
         ),
         interactions.Option(
-            name="wvs",
-            description="폿 필수 계수 (20)",
-            type=interactions.OptionType.INTEGER,
+            name="weight_power",
+            description="파티 세기 균형 계수 (2)",
+            type=interactions.OptionType.NUMBER,
             required=False,
-            name_localizations={"ko": "폿계수"}
+            name_localizations={"ko": "균형계수"}
         ),
         interactions.Option(
-            name="wvd",
-            description="직업 중복 계수 (20)",
-            type=interactions.OptionType.INTEGER,
+            name="weight_group",
+            description="연공 우선 계수 (0.25)",
+            type=interactions.OptionType.NUMBER,
             required=False,
-            name_localizations={"ko": "직업계수"}
+            name_localizations={"ko": "연공계수"}
         ),
         interactions.Option(
-            name="wg",
-            description="다그룹 포함 계수 (30)",
-            type=interactions.OptionType.INTEGER,
+            name="weight_duperole",
+            description="중복 직업 계수 (1)",
+            type=interactions.OptionType.NUMBER,
             required=False,
-            name_localizations={"ko": "다그룹계수"}
-        ),
-        interactions.Option(
-            name="pu",
-            description="선호 유저들",
-            type=interactions.OptionType.STRING,
-            required=False,
-            name_localizations={"ko": "선호유저들"}
-        ),
-        interactions.Option(
-            name="wpu",
-            description="선호 유저들 계수 (10)",
-            type=interactions.OptionType.INTEGER,
-            required=False,
-            name_localizations={"ko": "선호유저계수"}
+            name_localizations={"ko": "중복계수"}
         )
     ]
 )
-async def CommandPartyGenerate(ctx: interactions.CommandContext, cubes: int = 0, wpb: int = 30, wvs: int = 20, wvd: int = 20, wg: int = 30, pu: str = "", wpu: int = 10):
+async def CommandPartyGenerate(ctx: interactions.CommandContext, sample_steps: int = 1024, optimize_steps: int = 512, weight_power: float = 2, weight_group: float = 0.25, weight_duperole: float = 1):
     await ctx.defer(ephemeral = True)
-    embeds = KPMPartyGenerate(KPM, cubes, wpb, wvs, wvd, wg, pu, wpu)
+    embeds = KPMPartyGenerate(KPM, sample_steps, optimize_steps, weight_power, weight_group, weight_duperole)
     await ctx.send("", embeds=embeds)
 
 @bot.command(

@@ -7,22 +7,17 @@ from ..kakul.loainfo import GetApproxStrength
 from ..kakul.utils import *
 
 
-def KPMPartyGenerate(kpm, ncubes=0, wpb=30, wvs=20, wvd=20, wg=30, pu="", wpu=10):
+def KPMPartyGenerate(kpm, sample_steps=1024, optimize_steps=256, weight_power=2, weight_group=0.25, weight_duperole=1):
     printl("KPMGenerateParty")
     param = dict()
-    if ncubes == 0:
-        param["sample_steps"] = int(len(kpm.characters)**1.2*1000)
-    else:
-        param["sample_steps"] = ncubes
-    param["weight_powerbal"] = wpb
-    param["weight_validsup"] = wvs
-    param["weight_validrole"] = wvd
-    param["weight_group"] = wg
-    param["weight_preferuser"] = wpu
-    param["preferuser"] = pu
-    sco, textt = kpm.GenerateParty(param)
+    param["sample_steps"] = sample_steps
+    param["optimize_steps"] = optimize_steps
+    param["weight_power"] = weight_power
+    param["weight_group"] = weight_group
+    param["weight_duperole"] = weight_duperole
+    sco = kpm.GeneratePartyV3(param, verbose = False)
     KPMSave(kpm)
-    return interactions.Embed(description="%d개의 큐브를 관측하고, 최선의 결과를 찾았습니다.\n최종 점수 : %s"%(param["sample_steps"], textt), color=Color["white"])
+    return interactions.Embed(description="%d개의 큐브를 관측하고, 최선의 결과를 찾았습니다.\n최종 점수 : %s"%(param["sample_steps"], sco), color=Color["white"])
 
 def KPMResetParty(kpm):
     printl("KPMResetParty")

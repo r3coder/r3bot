@@ -2,6 +2,7 @@
 import random
 import time
 import math
+import itertools
 
 from ..kakul.character import Character
 from ..kakul.party import Party
@@ -36,6 +37,8 @@ class Group:
     count: int = 0
     users: list = field(default_factory=list)
     sups: list = field(default_factory=list)
+    supp: list = field(default_factory=list)
+    deal: list = field(default_factory=list)
 
 
 def GetTextTime(ind):
@@ -343,422 +346,344 @@ class Manager:
                         break
             
 
-    def GenerateParty(self, parameters = dict(), verbose = False):
-        printl("#"*50)
-        printl("Party Generation Algorithm has been started.")
-        printl("Parameters" + str(parameters))
+    def GeneratePartyV3(self, parameters = dict(), verbose = False):
         self.ResetParty()
-        # If there are less than 4 characters, do not make a party
         if len(self.characters) < 4:
-            if verbose:
-                printl("Not enough characters to make a party(4), party is not generated")
+            printl("Not enough characters to make a party(4), party is not generated")
             return -1
+        printl("#"*50)
+        printl("Party Generation Algorithm v3 has been started.")
+        printl("Parameters" + str(parameters))
 
+        sample_steps = 10 if "sample_steps" not in parameters else parameters["sample_steps"]
+        optimize_steps = 256 if "optimize_steps" not in parameters else parameters["optimize_steps"]
+        weight_group = 0.25 if "weight_group" not in parameters else parameters["weight_group"]
+        weight_power = 2 if "weight_power" not in parameters else parameters["weight_power"]
+        weight_duperole = 1 if "weight_duperole" not in parameters else parameters["weight_duperole"]
 
-        # Count number of parties should be maded
-        charCountTotal = len(self.characters)
-        charCountEssential = 0
-        for c in self.characters:
-            if self.GetUserByName(c.owner).active:
-                if c.essential:
-                    charCountEssential += 1
-        if verbose:
-            printl("%d number of essential(%d total), active characters detected." % (charCountEssential, charCountTotal))
-        
-        ownerDict = {}
-        for char in self.characters:
-            if not char.active:
-                continue
-            if self.GetUserByName(char.owner).active:
-                if char.owner in ownerDict:
-                    if char.essential:
-                        ownerDict[char.owner].countEssential += 1
-                        ownerDict[char.owner].charEssential.append(char)
-                    else:
-                        ownerDict[char.owner].countNonessential += 1
-                        ownerDict[char.owner].charNonessential.append(char)
-                else:
-                    ownerDict[char.owner] = UserInfo(countEssential=1, charEssential=[char])
-        
-        if verbose:
-            printl("User Information:")
-            for user in self.users:
-                printl(f"  {user.name} {ownerDict[user.name]}")
-        
-        tott = 0
+        best_error = 9999
 
-        best_score = 0
-        best_ind = 0
-        best_text = ""
-        best_cube = None
+        def EvaluateParties(pps, param_pow = 2, param_dupe = 1):
+            if len(pps) <= 0:
+                return -1
+            res1, res2 = 0, 0
+            pw_tot = 0
+            for p in pps:
+                pw_tot += p.GetPartyPower()
+                if p.isRoleDupe():
+                    res2 += param_dupe
+            pw_avg = pw_tot / len(pps)
+            for p in pps: # Mean square error
+                res1 += (p.GetPartyPower() - pw_avg) ** 2 * param_pow
+            return (res1 + res2) / len(pps)
 
-        weight_preferuser = 10 if "weight_preferuser" not in parameters else parameters["weight_preferuser"]
-        try:
-            preferuser = parameters["preferuser"].split(",")
-        except:
-            preferuser = []            
-        weight_powerbal = 30 if "weight_powerbal" not in parameters else parameters["weight_powerbal"]
-        weight_validsup = 20 if "weight_validsup" not in parameters else parameters["weight_validsup"]
-        weight_validrole = 20 if "weight_validrole" not in parameters else parameters["weight_validrole"]
-        weight_group = 30 if "weight_group" not in parameters else parameters["weight_group"]
-        weight_avoiddays = 30 if "weight_avoiddays" not in parameters else parameters["weight_avoiddays"]
+        def _TempLenPrint(n):
+            strr = ""
+            for key, value in n.items():
+                if value["supp"] == 0 and value["deal"] == 0:
+                    continue
+                strr += f'{key}:({value["deal"]}, {value["supp"]}) '
+            printl(strr)
 
-        sample_steps = 4096 if "sample_steps" not in parameters else parameters["sample_steps"]
-        
+        valid_gens = 0
         for step in range(sample_steps):
-            pts = ""
-            for val in ownerDict:
-                ownerDict[val].countAssigned = 0
-            # Return all boths to the supporter mode
-            for character in self.characters:
-                if character.isBoth():
-                    character.isSupportMode = True
-
-            # Count number of supporters
-            isLackOfSupporter = False
-            numSupporters = 0
-            supporterList, supporterNSList = [], []
+            deal_ess, supp_ess = [], []
+            deal_ext, supp_ext = [], []
+            both_ess, both_ext = [], []
             for c in self.characters:
-                if not c.active:
-                    continue
-                if c.isSupporter() and self.GetUserByName(c.owner).active:
-                    if c.essential:
-                        supporterList.append(c)
-                        numSupporters += 1
+                if c.isBoth():
+                    c.isSupportMode = True
+                if self.GetUserByName(c.owner).active:
+                    if c.active:
+                        if c.essential:
+                            if c.isSupporter():
+                                supp_ess.append(c)
+                            else:
+                                deal_ess.append(c)
+                            if c.isBoth():
+                                both_ess.append(c)
+                        else:
+                            if c.isSupporter():
+                                supp_ext.append(c)
+                            else:
+                                deal_ext.append(c)
+                            if c.isBoth():
+                                both_ext.append(c)
+            
+            # Step 1, manage supporter-dealer ratio
+            if verbose:
+                printl(" >>> Step 1 : manage supporter-dealer ratio, %d/%d"%(len(supp_ess), len(deal_ess)))
+            while len(supp_ess) * 3 != len(deal_ess):
+                if len(supp_ess) * 3 < len(deal_ess):
+                    if len(supp_ext) > 0:
+                        supp = random.choice(supp_ext)
+                        supp_ess.append(supp)
+                        supp_ext.remove(supp)
+                        if verbose:
+                            printl("Added " + supp.name + " to support")
                     else:
-                        supporterNSList.append(c)
-        
-            cube = Cube()
-            pts += "Cube #%4d: "%(step+1)
+                        break
+                elif len(supp_ess) * 3 > len(deal_ess):
+                    if len(deal_ext) > 0: # Append Extra dealers first
+                        deal = random.choice(deal_ext)
+                        deal_ess.append(deal)
+                        deal_ext.remove(deal)
+                        if verbose:
+                            printl("Added " + deal.name + " to dealer")
+                    elif len(both_ess) > 0: # Change "Both" to "Dealer"
+                        both = random.choice(both_ess)
+                        deal_ess.append(both)
+                        supp_ess.remove(both)
+                        both_ess.remove(both)
+                        if verbose:
+                            printl("Changed " + both.name + " to dealer")
+                    elif len(both_ext) > 0:
+                        both = random.choice(both_ext)
+                        deal_ess.append(both)
+                        supp_ess.remove(both)
+                        both_ext.remove(both)
+                        if verbose:
+                            printl("Changed " + both.name + " to dealer")
+                    else:
+                        break
+            if len(supp_ess) * 3 != len(deal_ess):
+                printl("Dealer-Support ratio is not sufficient to create parties, party will not generated")
+                return -1
+            deals = deal_ess
+            supps = supp_ess
+            if verbose:
+                printl("%d/%d, total %d parties will be generated" % (len(supps), len(deals), len(supps)))
+            total_char_n = len(deals) + len(supps)
+            # Add current Character pool to data
+            cnt_user = {}
+            deal_user, supp_user = {}, {}
+            for c in deals:
+                if c.owner not in cnt_user:
+                    cnt_user[c.owner] = {"deal": 0, "supp": 0}
+                    deal_user[c.owner] = []
+                    supp_user[c.owner] = []
+                deal_user[c.owner].append(c)
+            for c in supps:
+                if c.owner not in cnt_user:
+                    cnt_user[c.owner] = {"deal": 0, "supp": 0}
+                    deal_user[c.owner] = []
+                    supp_user[c.owner] = []
+                supp_user[c.owner].append(c)
 
-            # groupSize should be random between 2 and 6, I think.
-            groupSize = random.randint(3, 6) # groupSize = 6 
-            pts += "GS=%d"%groupSize
-            # Making consecutive groups
+            # Step 2. Create group starting from Max number of consecutive parties.
+            ## Get every possible combination of users that have more than N characters.
+            ## Choose element that has more supporter count than party count.
+            ## Repeat until there is no more possible combination.
+            ## After the process, if there dealer is left, ignore.
+
             groups = []
-            rep = 100
-            while groupSize >= 1:
-                cand = []
-                for _, val in enumerate(ownerDict):
-                    if ownerDict[val].countEssential - ownerDict[val].countAssigned >= groupSize:
-                        cand.append(val)
-                if len(cand) >= 4:
-                    random.shuffle(cand)
-                    cand = cand[:4]
-                    supcnt = 0
-                    for char in supporterList:
-                        if char.owner in cand:
-                            supcnt += 1
-                    if supcnt < groupSize:
-                        rep -= 1
-                        if rep < 0:
-                            groupSize -= 1
-                            rep = 100
-                        continue
-                    groups.append(Group(count=groupSize, users=cand[:4]))
-                    for i in range(4):
-                        ownerDict[cand[i]].countAssigned += groupSize
-                else:
-                    groupSize -= 1
-            # Append group using non-essential, starting from group size 4
-            flagNonessential = False
-            for user in self.users:
-                if not user.active:
-                    continue
-                if ownerDict[user.name].countAssigned < ownerDict[user.name].countEssential:
-                    flagNonessential = True
-                    break
-            if flagNonessential:
-                groupSize = 4
-                rep = 100
-                while groupSize >= 1:
-                    cand = []
-                    for _, val in enumerate(ownerDict):
-                        if ownerDict[val].countEssential + ownerDict[val].countNonessential - ownerDict[val].countAssigned >= groupSize:
-                            cand.append(val)
-                    if len(cand) >= 4:
-                        random.shuffle(cand)
-                        cand = cand[:4]
-                        supcnt = 0
-                        for char in supporterList:
-                            if char.owner in cand:
-                                supcnt += 1
-                        if supcnt < groupSize:
-                            rep -= 1
-                            if rep < 0:
-                                groupSize -= 1
-                                rep = 100
-                            continue
-                        groups.append(Group(count=groupSize, users=cand[:4]))
-                        for i in range(4):
-                            ownerDict[cand[i]].countAssigned += groupSize
-                    else:
-                        groupSize -= 1
-            
-            
-            partyCount = 0
-            for group in groups:
-                partyCount += group.count
-            if numSupporters < partyCount:
-                # Append leftover supporters
-                for c in supporterNSList:
-                    supporterList.append(c)
-                    numSupporters += 1
-                if numSupporters < partyCount:
-                    isLackOfSupporter = True
-            elif numSupporters > partyCount:
-                # Get all boths
-                boths = []
-                for c in self.characters:
-                    if not c.active:
-                        continue
-                    if c.essential and c.isBoth() and self.GetUserByName(c.owner).active:
-                        boths.append(c)
-                boths.sort(key=lambda x: x.power, reverse=True)
-                # Set random boths to be non-supporter mode
-                for i in range(min(len(boths),numSupporters - partyCount)):
-                    boths[i].isSupportMode = False
-                    supporterList.remove(boths[i])
-                    # if verbose:
-                    #     printl(f"Character {boths[i].name} is set to non-supporter mode.")
-        
-
-            flag = False
-            for user in self.users:
-                if not user.active:
-                    continue
-                if ownerDict[user.name].countAssigned < ownerDict[user.name].countEssential:
-                    flag = True
-                    break
-            if flag:
-                pts += " 1X"
-                cube.score = -9999
-                
+            if verbose:
+                printl(" >>> Step 2 : Create group starting from Max number of consecutive parties")
+            max_iter, curr_iter = 32, 0
+            while(curr_iter < max_iter):
+                curr_iter += 1
+                finished = True
+                maxu, chn = 0, 0
+                for u in cnt_user:
+                    cnt_user[u] = {"deal": len(deal_user[u]), "supp": len(supp_user[u])}
+                    cnt = cnt_user[u]["deal"] + cnt_user[u]["supp"]
+                    if cnt > 0:
+                        chn += cnt
+                        if cnt >= maxu:
+                            maxu = cnt
+                        finished = False
                 if verbose:
-                    printl(pts)
+                    _TempLenPrint(cnt_user)
+                if maxu * 4 > chn:
+                    break
+                if finished:
+                    break
+                max_group = max([cnt_user[x]["deal"] + cnt_user[x]["supp"] for x in cnt_user])
+                # TODO : Maybe make this random to get better results
+                for group_size in range(max_group, 0, -1):
+                    users = [x for x in cnt_user if cnt_user[x]["deal"] + cnt_user[x]["supp"] >= group_size]
+                    candidates = []
+                    for comb in itertools.combinations(users, 4):
+                        if cnt_user[comb[0]]["supp"] + cnt_user[comb[1]]["supp"] + cnt_user[comb[2]]["supp"] + cnt_user[comb[3]]["supp"] >= group_size and cnt_user[comb[0]]["deal"] + cnt_user[comb[1]]["deal"] + cnt_user[comb[2]]["deal"] + cnt_user[comb[3]]["deal"] >= group_size * 3:
+                            candidates.append(comb)
+                    if verbose and len(candidates) > 0:
+                        printl(f"Group size: {group_size}, {len(candidates)} candidates")
+                    if len(candidates) == 0: # Skip to next group size
+                        continue
+                    # Pick one of the candidates
+                    candidate = random.choice(candidates)
+                    if verbose:
+                        printl(f"Selected candidate: {candidate}")
+                    candn = {}
+                    for user in candidate:
+                        candn[user] = 0
+                    group = Group(count=group_size, users=list(candidate))
+                    _remove = []
+                    # If a user has exact number of characters, append all characters
+                    for user in candidate:
+                        if len(supp_user[user]) + len(deal_user[user]) == group_size:
+                            candn[user] += group_size
+                            for char in supp_user[user]:
+                                group.supp.append(char)
+                                _remove.append(char)
+                            for char in deal_user[user]:
+                                group.deal.append(char)
+                                _remove.append(char)
+
+                    # Append characters if user has only one type of character
+                    for user in candidate:
+                        if cnt_user[user]["deal"] == 0:
+                            for char in supp_user[user]:
+                                if char not in group.supp:
+                                    group.supp.append(char)
+                                    _remove.append(char)
+                                    candn[user] += 1
+                                    if candn[user] >= group_size:
+                                        break 
+                        if cnt_user[user]["supp"] == 0:
+                            for char in deal_user[user]:
+                                if char not in group.deal:
+                                    group.deal.append(char)
+                                    _remove.append(char)
+                                    candn[user] += 1
+                                    if candn[user] >= group_size:
+                                        break 
+                    # Check if group is not valid
+                    if len(group.supp) > group_size or len(group.deal) > group_size * 3:
+                        if verbose:
+                            printl(f"Group is not valid, skipping #Supp:{len(group.supp)}, #Deal:{len(group.deal)}")
+                        break
+                    # Append supporters
+                    supps_temp = []
+                    for user in candidate:
+                        for char in supp_user[user]:
+                            supps_temp.append(char)
+                    for char in supps_temp:
+                        if len(group.supp) >= group_size:
+                            break
+                        if candn[char.owner] < group_size:
+                            if char not in group.supp:
+                                group.supp.append(char)
+                                _remove.append(char)
+                                candn[char.owner] += 1
+                    # Append dealers
+                    for user in candidate:
+                        if candn[user] >= group_size:
+                            continue
+                        for char in deal_user[user]:
+                            if char not in group.deal:
+                                group.deal.append(char)
+                                _remove.append(char)
+                                candn[user] += 1
+                                if candn[user] >= group_size:
+                                    break
+                    if len(group.supp) < group_size or len(group.deal) < group_size * 3:
+                        if verbose:
+                            printl(f"Group is not valid, skipping #Supp:{len(group.supp)}, #Deal:{len(group.deal)}")
+                        break
+                    groups.append(group)
+                    for char in _remove:
+                        for user in cnt_user:
+                            if char in deal_user[user]:
+                                deal_user[user].remove(char)
+                            if char in supp_user[user]:
+                                supp_user[user].remove(char)
+                    if verbose:
+                        printl(f"Group: {group}")
+                    break
+            if not finished:
+                if verbose:
+                    printl("Failed to generate groups, moving to next step")
                 continue
-            else:
-                pts += " 1O "
-
-
-            # Phase 2: Ensure one supporter for one party
-            supporters = dict()
-            for char in supporterList:
-                if char.isSupporter():
-                    if char.owner not in supporters:
-                        supporters[char.owner] = []
-                    if ownerDict[char.owner].countAssigned > ownerDict[char.owner].countEssential or char.essential:
-                        supporters[char.owner].append(char)
+            # Intermission - create parties from groups
+            parties = []
+            for group in groups:
+                pps = []
+                for i in range(group.count):
+                    pps.append(Party(len(parties)+i))
+                for char in group.supp:
+                    for party in pps:
+                        success = party.AddCharacter(char, strict=True)
+                        if success:
+                            break
+                for char in group.deal:
+                    for party in pps:
+                        success = party.AddCharacter(char, strict=False)
+                        if success:
+                            break
+                parties.extend(pps)
             
-            # get appearances of each user
+            if verbose:
+                printl(str(parties))
+            valid_gens += 1
+            # Step 4. Optimize party by swapping characters with same owner.
+            ## 1. It is not good to have same role in party
+            ## 2. It is better if every parties are balanced
+            curr_error = EvaluateParties(parties, weight_power, weight_duperole)
+            if verbose:
+                print(f"Current error: {curr_error}")
+            for opt_step in range(optimize_steps):
+                # Random swap two characters, maybe using this...? >> self.ReplaceCharacters
+                # get a random character from random party
+                p1 = random.choice(parties)
+                char1 = random.choice(p1.members)
+                if char1.isSupporter():
+                    continue
+                owner_char = []
+                # find another member from another party with same owner
+                for p2 in parties:
+                    if p1.idx == p2.idx:
+                        continue
+                    for char in p2.members:
+                        if char1.owner == char.owner and not char.isSupporter():
+                            owner_char.append(char)
+                            break
+                if len(owner_char) == 0:
+                    continue
+                char2 = random.choice(owner_char)
+                for p2 in parties:
+                    if char2 in p2.members:
+                        break
+                p1.members.remove(char1)
+                p2.members.remove(char2)
+                p1.members.append(char2)
+                p2.members.append(char1)
+                new_error = EvaluateParties(parties, weight_power, weight_duperole)
+                if new_error < curr_error:
+                    curr_error = new_error
+                else:
+                    p1.members.remove(char2)
+                    p2.members.remove(char1)
+                    p1.members.append(char1)
+                    p2.members.append(char2)
+                if opt_step % 10 == 0 and verbose:
+                    printl(f"Optimize Step {opt_step+1}/{optimize_steps}, Error: {curr_error}")
+            # Step 5. Calculate the score, and if party is good enough, replace old one
+            ## Score is calculated by avoiddays, EvaluateParties, party dupes
+            ##
             appears = dict()
-            onlysups = dict()
             for group in groups:
                 for user in group.users:
                     if user not in appears:
                         appears[user] = 1
-                        onlysups[user] = 100
                     else:
                         appears[user] += 1
-            
-            for char in self.characters:
-                if not char.active:
-                    continue
-                if not char.isSupporter():
-                    onlysups[char.owner] = 0
-            
-            # iterate through appears
-            groups.sort(key=lambda x: x.count)
-            for group in groups:
-                group.users.sort(key=lambda x: appears[x]+10 - len(supporters[x] if x in supporters else []) + onlysups[x])
-                if group.count > len(group.sups):
-                    names = group.users * group.count
-                    for user in names:
-                        if len(group.sups) == group.count:
-                            break
-                        if user in supporters and len(supporters[user]) > 0:
-                            group.sups.append(supporters[user][0])
-                            supporters[user].remove(supporters[user][0])
-                            
-            ss = ""
-            for s in supporters:
-                if len(supporters[s]) > 0:
-                    ss += str(supporters[s]) + ","
-            if ss == "":
-                pts += "2O "
-            else:
-                pts += "2X "
-                cube.score = -9999
-                
-                if verbose:
-                    printl(pts)
-                continue
-            
-            # Phase 3: Assign Characters and get score
-            dealers = dict()
-            dealersNS = dict()
-            for char in self.characters:
-                if not char.active:
-                    continue
-                if not char.isSupporter():
-                    if char.owner not in dealers:
-                        dealers[char.owner] = []
-                        dealersNS[char.owner] = []
-                    if char.essential:
-                        dealers[char.owner].append(char)
-                    else:
-                        dealersNS[char.owner].append(char)
+            group_error = 0
+            for user in appears:
+                group_error += appears[user] ** 2 * weight_group
+            group_error = group_error / len(appears)
 
-
-            # Assign sups and deals to the party
-            pps = []
-            groups.sort(key=lambda x: x.count, reverse=True)
-            for dealer in dealers:
-                random.shuffle(dealers[dealer])
-            for group in groups:
-                for iv in range(group.count):
-                    pps.append(Party(len(pps)))
-                    if iv < len(group.sups):
-                        pps[-1].AddCharacter(group.sups[iv])
-                    for user in group.users:
-                        if user in dealers and len(dealers[user]) > 0:
-                            v = pps[-1].AddCharacter(dealers[user][0], strict=False)
-                            if v:
-                                dealers[user].remove(dealers[user][0])
-                        elif user in dealersNS and len(dealersNS[user]) > 0:
-                            v = pps[-1].AddCharacter(dealersNS[user][0], strict=False)
-                            if v:
-                                dealersNS[user].remove(dealersNS[user][0])
-
-
-            fill = dict()
-            pind = 0
-            for group in groups:
-                sss = []
-                for user in self.users:
-                    if pps[pind].isOwnerExists(user.name):
-                        for day in user.avoiddays:
-                            sss.append(day)
-                times = GetAllTimesWithoutDay(list(set(sss)))
-                for ppi in range(group.count):
-                    for ti in times:
-                        if str(ti) not in fill:
-                            pps[pind+ppi].daytime = GetTextTime(ti)
-                            fill[str(ti)] = []
-                            for user in group.users:    
-                                fill[str(ti)].append(user)
-                            break
-                        else:
-                            flag = False
-                            for user in group.users:
-                                if user in fill[str(ti)]:
-                                    flag = True
-                            if not flag:
-                                pps[pind+ppi].daytime = GetTextTime(ti)
-                                for user in group.users:
-                                    fill[str(ti)].append(user)
-                                break
-                pind += group.count
-            
-            # Get Score
-            ttStr = 0
-            for party in pps:
-                ttStr += party.GetPartyPower()
-            averageStr = ttStr / len(pps)
-
-            score_powerbal, score_validsup, score_validrole, score_preferuser, score_avoiddays = 0, 0, 0, 0, 0
-            score_group = 0
-            for party in pps:
-                if len(party.members) == 0: # Ignore if party has empty member
-                    continue
-                pw = party.GetPartyPower()
-                if pw < averageStr:
-                    score_powerbal += (averageStr - pw) ** 2 * 2
-                else:
-                    score_powerbal += (pw - averageStr) ** 2
-                if not party.isRoleDupe():
-                    score_validrole += weight_validrole
-                if party.isSupporterExists():
-                    score_validsup += weight_validsup
-                
-                # preferuser
-                flag_pu = True
-                for member in party.members:
-                    if member.owner not in preferuser:
-                        flag_pu = False
-                        break
-                if flag_pu:
-                    score_preferuser += weight_preferuser / len(pps)
-
-                # preferday
-                # index of party in pps
-                
-                if party.daytime != "":
-                    score_avoiddays += weight_avoiddays / len(pps)
-
-
-
-            # Score based on group
-            for key in appears:
-                if appears[key] > 1:
-                    score_group += (appears[key] - 1) ** 2
-
-            score_validsup = score_validsup / len(pps)
-            score_validrole = score_validrole / len(pps)
-            score_powerbal = max(weight_powerbal - score_powerbal / len(pps), 0)
-
-            score_group = max(0, weight_group - score_group / len(appears))
-
-            cube.score += score_powerbal + score_validsup + score_validrole + score_group + score_preferuser + score_avoiddays
-                
-            tott += 1
-            pts += "%2.1f "%(cube.score)
-            
-            
-
+            final_error = group_error + curr_error
             if verbose:
-                printl(pts)
-                pss = "Party Info:\n"
-                for party in pps:
-                    pss += " "*22+str(party) + "\n"
-                printl(pss)
-            
-            if cube.score > best_score:
+                printl(f"Final Error: {final_error}")
+            if final_error < best_error:
+                best_error = final_error
+                self.parties = parties
+                printl(f'New best #{step+1}, error: {best_error}')
                 
-                cube.parties = pps
-                cube.groups = groups
-                for char in self.characters:
-                    if char.isBoth():
-                        cube.charSup[char.name] = char.isSupportMode
-
-                best_score = cube.score
-                best_cube = cube
-                best_ind = step
-                best_text = "%5.1f=(PB)%4.1f+(VS)%4.1f+(VR)%4.1f+(GR)%4.1f+(PU)%4.1f+(AD)%4.1f"%(cube.score, score_powerbal, score_validsup, score_validrole, score_group, score_preferuser, score_avoiddays)
-
-                printl("Cube #%d, Best Score Updated: %s"%(step, best_text))
-
+        self.RecalculateTime()
         printl("#"*50)
-        printl("Valid Generations: %d/%d"%(tott, sample_steps))
-
-        # if verbose:
-        printl("Best Result: Cube #%d"%(best_ind))
-        printl("  Score: %2.1f"%(best_score))
-        pss = "  Group Info:\n"
-        for ggg in best_cube.groups:
-            pss += str(ggg) + "\n"
-        printl(pss[:-1])
-        pss = "  Party Info:\n"
-        for party in best_cube.parties:
-            pss += str(party) + "\n"
-        printl(pss)
-        self.parties = best_cube.parties
-        self.groups = [g.count for g in best_cube.groups]
-        
-        for char in self.characters:
-            if char.name in best_cube.charSup:
-                char.isSupportMode = best_cube.charSup[char.name]
-        
-        self.Validate()
-
-        return best_score, best_text
+        printl(f'{valid_gens}/{sample_steps} valid party generations')
+        printl(str(self.parties))
+        printl(f'Final Error: {best_error}')
+        return best_error
