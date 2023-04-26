@@ -2,6 +2,7 @@
 
 import time
 import datetime
+import os
 def Now():
     now = datetime.datetime.now() + datetime.timedelta(hours=9)
     return now
@@ -65,7 +66,7 @@ def _ParseTimeText(str):
 import pickle
 
 
-def KPMSave(kpm):
+def Save(kpm, mode):
     saveDict = {}
     saveDict["version"] = 1.0
     saveDict["time"] = time.time()
@@ -89,11 +90,17 @@ def KPMSave(kpm):
     saveDict["char_count"] = len(kpm.characters)
     for char, ind in zip(kpm.characters, range(len(kpm.characters))):
         saveDict["char/" + str(ind)] = [char.owner, char.name, char.role, char.power, char.essential, char.active, char.isSupportMode]
-
-    pickle.dump(saveDict, open("./data/kakul/latest.save", "wb"))
+    if mode == "kpm":
+        if not os.path.exists("./data/kakul/"):
+            os.mkdir("./data/kakul/")
+        pickle.dump(saveDict, open("./data/kakul/latest.save", "wb"))
+    elif mode == "ypm":
+        if not os.path.exists("./data/yangel/"):
+            os.mkdir("./data/yangel/")
+        pickle.dump(saveDict, open("./data/yangel/latest.save", "wb"))
     print("Save Complete")
 
-def KPMLoad(path, kpm):
+def Load(path, kpm):
     pickleData = pickle.load(open(path, "rb"))
 
     kpm.characters = []

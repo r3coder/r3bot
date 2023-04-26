@@ -16,11 +16,12 @@ from modules.emote import emote_dict
 
 from modules.kakul.manager import Manager
 from modules.kakul.interface import *
-from modules.kakul.utils import KPMSave, KPMLoad, printl, _ParseTimeText
+from modules.kakul.utils import Save, Load, printl, _ParseTimeText
 from modules.mahjong import MahjongScore
 from modules.quality import QualitySim
 from modules.balance import BalanceManager
-KPM = Manager()
+KPM = Manager("kpm")
+YPM = Manager("ypm")
 MS = MahjongScore()
 QS = QualitySim()
 BM = BalanceManager()
@@ -56,12 +57,15 @@ async def CallTask():
         for pid in range(len(KPM.parties)):
             if v != KPM.parties[pid].GetPartyOwnerString():
                 if KPM.parties[pid].cleared == False:
-                    KPM.parties[pid].daytime
-                    day, hour, minute = _ParseTimeText(KPM.parties[pid].daytime)
+                    try:
+                        day, hour, minute = _ParseTimeText(KPM.parties[pid].daytime)
+                        if now.weekday() == day and now.hour == hour and now.minute == minute:
+                            text, embeds = KPMPartyCall(KPM, pid+1)
+                            await channel.send(text, embeds=embeds)
+                    except:
+                        pass
                     # print(day, hour, minute)
-                    if now.weekday() == day and now.hour == hour and now.minute == minute:
-                        text, embeds = KPMPartyCall(KPM, pid+1)
-                        await channel.send(text, embeds=embeds)
+                    
             v = KPM.parties[pid].GetPartyOwnerString()
 
         # Call party 
@@ -69,7 +73,8 @@ async def CallTask():
 @bot.event
 async def on_ready():
     global task_started
-    KPMLoad("./data/kakul/latest.save", KPM)
+    Load("./data/kakul/latest.save", KPM)
+    Load("./data/yangel/latest.save", YPM)
     if task_started == False:
         printl("Interval Task Started!")
         CallTask.start()
@@ -157,18 +162,31 @@ async def CommandLuck(ctx: interactions.CommandContext):
             required=True,
             name_localizations={"ko": "채널"}
         ),
+        interactions.Option(
+            name="type",
+            description="어떤 파티를 설정할지 정합니다",
+            type=interactions.OptionType.STRING,
+            required=True,
+            name_localizations={"ko": "종류"}
+        )
     ]
 )
-async def CommandSetChannel(ctx: interactions.CommandContext, channel: interactions.Channel):
+async def CommandSetChannel(ctx: interactions.CommandContext, channel: interactions.Channel, type: str):
     if channel.type != interactions.ChannelType.GUILD_TEXT:
         await ctx.send("텍스트 채널을 선택해주세요.")
         return
     if channel.guild_id != ctx.guild_id:
         await ctx.send("서버 내의 채널을 선택해주세요.")
         return
-    
-    KPM.channel = ctx.channel.id
-    KPMSave(KPM)
+    if type == "쿠크":
+        KPM.channel = ctx.channel.id
+        Save(KPM, KPM.idn)
+    elif type == "양겔":
+        YPM.channel = ctx.channel.id
+        Save(YPM, YPM.idn)
+    else:
+        await ctx.send("존재하지 않는 파티 종류입니다.")
+        return
     # send message as embed
     await ctx.send(embeds=interactions.Embed(
         title="채널이 설정되었습니다.",
@@ -185,7 +203,13 @@ async def CommandSetChannel(ctx: interactions.CommandContext, channel: interacti
     scope=GUILD
 )
 async def CommandPartyRecalculate(ctx: interactions.CommandContext):
-    embeds = KPMRecalculateTime(KPM)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMRecalculateTime(KPM)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMRecalculateTime(YPM)
+    else:
+        await ctx.send("파티 채널에서 실행해주세요.")
+        return
     await ctx.send("", embeds=embeds)
 
 
@@ -196,6 +220,13 @@ async def CommandPartyRecalculate(ctx: interactions.CommandContext):
     default_member_permissions=interactions.Permissions.ADMINISTRATOR,
     scope=GUILD,
     options = [
+        interactions.Option(
+            name="type",
+            description="어떤 파티를 설정할지 정합니다",
+            type=interactions.OptionType.STRING,
+            required=True,
+            name_localizations={"ko": "종류"}
+        ),
         interactions.Option(
             name="sample_steps",
             description="파티 구성 샘플 수 (1024)",
@@ -233,9 +264,18 @@ async def CommandPartyRecalculate(ctx: interactions.CommandContext):
         )
     ]
 )
-async def CommandPartyGenerate(ctx: interactions.CommandContext, sample_steps: int = 1024, optimize_steps: int = 512, weight_power: float = 2, weight_group: float = 0.25, weight_duperole: float = 1):
+async def CommandPartyGenerate(ctx: interactions.CommandContext, type: str, sample_steps: int = 1024, optimize_steps: int = 512, weight_power: float = 2, weight_group: float = 0.25, weight_duperole: float = 1):
     await ctx.defer(ephemeral = True)
-    embeds = KPMPartyGenerate(KPM, sample_steps, optimize_steps, weight_power, weight_group, weight_duperole)
+    if type == "쿠크":
+        embeds = KPMPartyGenerate(KPM, sample_steps, optimize_steps, weight_power, weight_group, weight_duperole)
+    elif type == "양겔":
+        embeds = KPMPartyGenerate(YPM, sample_steps, optimize_steps, weight_power, weight_group, weight_duperole)
+    else:
+        embeds = interactions.Embed(
+            title="파티 종류가 맞지 않습니다",
+            description="[쿠크, 양겔] 중 선택해 주세요.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -243,10 +283,28 @@ async def CommandPartyGenerate(ctx: interactions.CommandContext, sample_steps: i
     name_localizations={"ko": "파티리셋"},
     description="파티를 리셋합니다 (관리자용)",
     default_member_permissions=interactions.Permissions.ADMINISTRATOR,
-    scope=GUILD
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="type",
+            description="어떤 파티를 설정할지 정합니다",
+            type=interactions.OptionType.STRING,
+            required=True,
+            name_localizations={"ko": "종류"}
+        )
+    ]
 )
-async def CommandPartyReset(ctx: interactions.CommandContext):
-    embeds = KPMResetParty(KPM)
+async def CommandPartyReset(ctx: interactions.CommandContext, type: str):
+    if type == "쿠크":
+        embeds = KPMResetParty(KPM)
+    elif type == "양겔":
+        embeds = KPMResetParty(YPM)
+    else:
+        embeds = interactions.Embed(
+            title="파티 종류가 맞지 않습니다",
+            description="[쿠크, 양겔] 중 선택해 주세요.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 
@@ -258,8 +316,14 @@ async def CommandPartyReset(ctx: interactions.CommandContext):
     scope=GUILD
 )
 async def CommandPartyCallEveryone(ctx: interactions.CommandContext):
-    msg = KPMCallEveryBody(KPM)
-    msg += "\n쿠크세이튼 파티가 결성되었습니다. `/파티목록` 명령어로 파티원을 확인하세요."
+    if ctx.channel_id == KPM.channel:
+        msg = KPMCallEveryBody(KPM)
+        msg += "\n쿠크세이튼 파티가 결성되었습니다. `/파티목록` 명령어로 파티원을 확인하세요."
+    elif ctx.channel_id == YPM.channel:
+        msg = KPMCallEveryBody(YPM)
+        msg += "\n양겔파티가 결성되었습니다. `/파티목록` 명령어로 파티원을 확인하세요."
+    else:
+        msg = "이 채널에서는 사용할 수 없는 명령어입니다."
     await ctx.send(msg)
 
 @bot.command(
@@ -287,7 +351,15 @@ async def CommandPartyCallEveryone(ctx: interactions.CommandContext):
 async def CommandPartyList(ctx: interactions.CommandContext, uncleared: bool = True, owner: interactions.Member = None):
     if owner is not None:
         owner = str(owner.user.username)
-    embeds = KPMPartyList(KPM, uncleared, owner)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMPartyList(KPM, uncleared, owner)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMPartyList(YPM, uncleared, owner)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -322,7 +394,15 @@ async def CommandPartyList(ctx: interactions.CommandContext, uncleared: bool = T
 async def CommandCharacterList(ctx: interactions.CommandContext, owner: interactions.Member = None, summary: bool = True, sort: bool = True):
     if owner is not None:
         owner = str(owner.user.username)
-    embeds = KPMCharacterList(KPM, owner, summary, sort)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMCharacterList(KPM, owner, summary, sort)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMCharacterList(YPM, owner, summary, sort)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 
@@ -369,7 +449,15 @@ async def CommandCharacterAdd(ctx: interactions.CommandContext, name: str, role:
     else:
         ping = owner.mention
         owner = str(owner.user.username)
-    embeds = KPMAddCharacter(KPM, name, role, owner, ping, is_essential)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMAddCharacter(KPM, name, role, owner, ping, is_essential)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMAddCharacter(YPM, name, role, owner, ping, is_essential)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -402,7 +490,15 @@ async def CommandCharacterAdd(ctx: interactions.CommandContext, name: str, role:
     ]        
 )
 async def CommandCharacterChangeInfo(ctx: interactions.CommandContext, name: str, is_essential: bool = None, is_support: bool = None):
-    embeds = KPMEditCharacter(KPM, name, is_essential, is_support)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMEditCharacter(KPM, name, is_essential, is_support)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMEditCharacter(YPM, name, is_essential, is_support)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -429,6 +525,7 @@ async def CommandCharacterChangeInfo(ctx: interactions.CommandContext, name: str
 async def CommandUpdateCharacter(ctx: interactions.CommandContext, name: str = None, force = False):
     await ctx.defer(ephemeral = True)
     embeds = KPMUpdateCharacter(KPM, name, force)
+    embeds = KPMUpdateCharacter(YPM, name, force)
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -446,7 +543,15 @@ async def CommandUpdateCharacter(ctx: interactions.CommandContext, name: str = N
     ]
 )
 async def CommandCharacterRemove(ctx: interactions.CommandContext, name: str):
-    embeds = KPMRemoveCharacter(KPM, name)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMRemoveCharacter(KPM, name)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMRemoveCharacter(YPM, name)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -465,7 +570,15 @@ async def CommandCharacterRemove(ctx: interactions.CommandContext, name: str):
     ]
 )
 async def CommandSetPartyClear(ctx: interactions.CommandContext, number: int):
-    embeds = KPMSetPartyClearState(KPM, number, True)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMSetPartyClearState(KPM, number, True)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMSetPartyClearState(YPM, number, True)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -484,7 +597,15 @@ async def CommandSetPartyClear(ctx: interactions.CommandContext, number: int):
     ]
 )
 async def CommandSetPartyClearX(ctx: interactions.CommandContext, number: int):
-    embeds = KPMSetPartyClearState(KPM, number, False)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMSetPartyClearState(KPM, number, False)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMSetPartyClearState(YPM, number, False)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -529,8 +650,66 @@ async def CommandPartyCall(ctx: interactions.CommandContext, number: int):
     ]
 )
 async def CommandPartyJoin(ctx: interactions.CommandContext, party: int, character: str):
-    embeds = KPMPartyJoin(KPM, party, character)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMPartyJoin(KPM, party, character)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMPartyJoin(YPM, party, character)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
+
+
+@bot.command(
+    name="character_dupe",
+    name_localizations={"ko": "캐릭터복사"},
+    description="쿠크, 양겔 어느 한 쪽에 있는 캐릭터를 다른 쪽에도 복사합니다.",
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="character",
+            description="복제할 캐릭터의 이름",
+            type=interactions.OptionType.STRING,
+            required=True,
+            name_localizations={"ko": "캐릭터"}
+        ),
+    ]
+)
+async def CommandCharacterDupe(ctx: interactions.CommandContext, character: str):
+    chark = KPM.GetCharacterByName(character)
+    chary = YPM.GetCharacterByName(character)
+    if chark is not None and chary is None:
+        YPM.characters.append(chark)
+        if not YPM.IsUserExists(chark.owner):
+            YPM.users.append(KPM.GetUserByName(chark.owner))
+        Save(YPM, YPM.idn)
+        embeds = interactions.Embed(
+            title="캐릭터를 양겔 파티에 복사 완료",
+            color=0x00ff00
+        )
+    elif chary is not None and chark is None:
+        KPM.characters.append(chary)
+        if not KPM.IsUserExists(chary.owner):
+            KPM.users.append(YPM.GetUserByName(chary.owner))
+        Save(KPM, KPM.idn)
+        embeds = interactions.Embed(
+            title="캐릭터를 쿠크 파티에 복사 완료",
+            color=0x00ff00
+        )
+    elif chark is not None and chary is not None:
+        embeds = interactions.Embed(
+            title="이미 존재하는 캐릭터입니다.",
+            color=0xff0000
+        )
+    elif chark is None and chary is None:
+        embeds = interactions.Embed(
+            title="존재하지 않는 캐릭터입니다.",
+            color=0xff0000
+        )
+    await ctx.send("", embeds=embeds)
+
 
 @bot.command(
     name="party_leave",
@@ -548,7 +727,15 @@ async def CommandPartyJoin(ctx: interactions.CommandContext, party: int, charact
     ]
 )
 async def CommandPartyLeave(ctx: interactions.CommandContext, character: str):
-    embeds = KPMPartyLeave(KPM, character)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMPartyLeave(KPM, character)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMPartyLeave(YPM, character)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -574,7 +761,15 @@ async def CommandPartyLeave(ctx: interactions.CommandContext, character: str):
     ]
 )
 async def CommandPartySwap(ctx: interactions.CommandContext, name1: str, name2: str):
-    embeds = KPMPartySwap(KPM, name1, name2)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMPartySwap(KPM, name1, name2)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMPartySwap(YPM, name1, name2)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 @bot.command(
@@ -584,7 +779,15 @@ async def CommandPartySwap(ctx: interactions.CommandContext, name1: str, name2: 
     scope=GUILD
 )
 async def CommandPartyAdd(ctx: interactions.CommandContext):
-    embeds = KPMPartyAdd(KPM)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMPartyAdd(KPM)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMPartyAdd(YPM)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 
@@ -611,7 +814,15 @@ async def CommandPartyAdd(ctx: interactions.CommandContext):
     ]
 )
 async def CommandPartyEditTime(ctx: interactions.CommandContext, party: int, time: str):
-    embeds = KPMPartyEditTime(KPM, party, time)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMPartyEditTime(KPM, party, time)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMPartyEditTime(YPM, party, time)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 
@@ -642,7 +853,15 @@ async def CommandUserActive(ctx: interactions.CommandContext, owner: interaction
         owner = str(ctx.author.user.username)
     else:
         owner = str(owner.user.username)
-    embeds = KPMUserActive(KPM, owner, state)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMUserActive(KPM, owner, state)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMUserActive(YPM, owner, state)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 
@@ -673,7 +892,15 @@ async def CommandUserAvoidDays(ctx: interactions.CommandContext, avoiddays: str 
         owner = str(ctx.author.user.username)
     else:
         owner = str(owner.user.username)
-    embeds = KPMUserSetAvoidDays(KPM, owner, avoiddays)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMUserSetAvoidDays(KPM, owner, avoiddays)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMUserSetAvoidDays(YPM, owner, avoiddays)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 
@@ -701,7 +928,15 @@ async def CommandUserAvoidDays(ctx: interactions.CommandContext, avoiddays: str 
     ]
 )
 async def CommandCharaActive(ctx: interactions.CommandContext, character: str, state: bool):
-    embeds = KPMCharacterActive(KPM, character, state)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMCharacterActive(KPM, character, state)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMCharacterActive(YPM, character, state)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 
@@ -728,7 +963,15 @@ async def CommandCharaActive(ctx: interactions.CommandContext, character: str, s
     ]
 )
 async def CommandCharaEssential(ctx: interactions.CommandContext, character: str, state: bool):
-    embeds = KPMCharacterEssential(KPM, character, state)
+    if ctx.channel_id == KPM.channel:
+        embeds = KPMCharacterEssential(KPM, character, state)
+    elif ctx.channel_id == YPM.channel:
+        embeds = KPMCharacterEssential(YPM, character, state)
+    else:
+        embeds = interactions.Embed(
+            title="이 채널에서는 사용할 수 없는 명령어입니다.",
+            color=0xff0000
+        )
     await ctx.send("", embeds=embeds)
 
 
@@ -1025,24 +1268,3 @@ async def CommandRemoveRecent(ctx: interactions.CommandContext, amount: int = 10
 
 
 bot.start()
-"""
-# Crontab
-from datetime import datetime
-import threading
-
-
-def checkTime():
-    # This function runs periodically every 1 second
-    threading.Timer(1, checkTime).start()
-
-    now = datetime.now()
-
-    current_time = now.strftime("%H:%M:%S")
-    print("Current Time =", current_time)
-
-    if(current_time == '06:00:00'):  # check if matches with the desired time
-        print('sending message')
-
-
-checkTime()
-"""

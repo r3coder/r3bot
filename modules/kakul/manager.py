@@ -69,7 +69,7 @@ def GetAllTimesWithoutDay(days):
 
 
 class Manager:
-    def __init__(self):
+    def __init__(self, idn):
         self.channel = None # Channel id
         self.characters = [] # list of Character
         self.users = [] # list of users
@@ -77,6 +77,8 @@ class Manager:
         self.leftovers = [] # list of characters
         self.parties = []
         self.groups = []
+
+        self.idn = idn
     
     def Fix(self):
         set = []
@@ -285,6 +287,12 @@ class Manager:
             if user.name == name:
                 return user
         return None
+    
+    def IsUserExists(self, name):
+        for user in self.users:
+            if user.name == name:
+                return True
+        return False
 
     def SetUserActive(self, name, state):
         for user in self.users:
@@ -423,14 +431,8 @@ class Manager:
                             printl("Added " + supp.name + " to support")
                     else:
                         break
-                elif len(supp_ess) * 3 > len(deal_ess):
-                    if len(deal_ext) > 0: # Append Extra dealers first
-                        deal = random.choice(deal_ext)
-                        deal_ess.append(deal)
-                        deal_ext.remove(deal)
-                        if verbose:
-                            printl("Added " + deal.name + " to dealer")
-                    elif len(both_ess) > 0: # Change "Both" to "Dealer"
+                elif len(supp_ess) * 3 > len(deal_ess) + 3:
+                    if len(both_ess) > 0: # Change "Both" to "Dealer"
                         both = random.choice(both_ess)
                         deal_ess.append(both)
                         supp_ess.remove(both)
@@ -440,10 +442,19 @@ class Manager:
                     elif len(both_ext) > 0:
                         both = random.choice(both_ext)
                         deal_ess.append(both)
-                        supp_ess.remove(both)
+                        supp_ext.remove(both)
                         both_ext.remove(both)
                         if verbose:
                             printl("Changed " + both.name + " to dealer")
+                    else:
+                        break
+                elif len(supp_ess) * 3 > len(deal_ess):
+                    if len(deal_ext) > 0: # Append Extra dealers first
+                        deal = random.choice(deal_ext)
+                        deal_ess.append(deal)
+                        deal_ext.remove(deal)
+                        if verbose:
+                            printl("Added " + deal.name + " to dealer")
                     else:
                         break
             if len(supp_ess) * 3 != len(deal_ess):
@@ -500,7 +511,8 @@ class Manager:
                     break
                 max_group = max([cnt_user[x]["deal"] + cnt_user[x]["supp"] for x in cnt_user])
                 # TODO : Maybe make this random to get better results
-                for group_size in range(max_group, 0, -1):
+                group_iter = random.randint(max(0, max_group-3), max_group)
+                for group_size in range(group_iter, 0, -1):
                     users = [x for x in cnt_user if cnt_user[x]["deal"] + cnt_user[x]["supp"] >= group_size]
                     candidates = []
                     for comb in itertools.combinations(users, 4):
