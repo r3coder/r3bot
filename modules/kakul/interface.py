@@ -91,6 +91,8 @@ def KPMPartyList(kpm, uncleared=True, owner=None):
     if len(kpm.leftovers) > 0:
         v = ""
         for char in kpm.leftovers:
+            if kpm.GetUserByName(char.owner).active == False:
+                continue
             v += "%s,  "%char.StrOwner()
         v = v[:-2]
         embed.add_field(name="예비 인원", value=v, inline=False)
@@ -106,6 +108,8 @@ def KPMPartyList(kpm, uncleared=True, owner=None):
 def KPMCharacterList(kpm, owner, summary, sort=True):
     printl(f"({kpm.idn})-CharacterList")
     kpm.Validate()
+    tot_plu, tot_ess, tot_non = 0, 0, 0
+    tot_plu_sup, tot_ess_sup, tot_non_sup = 0, 0, 0
     if sort:
         embed = interactions.Embed(title = "캐릭터 목록", description = "총 %d개의 캐릭터가 있습니다."%len(kpm.characters), color=Color["blue"])
         for user in kpm.users:
@@ -137,7 +141,6 @@ def KPMCharacterList(kpm, owner, summary, sort=True):
                             cnt_plu += 1
                         if not char.active:
                             cnt_non += 1
-
             if s != "":
                 if summary:
                     s = s[:-2]
@@ -154,6 +157,17 @@ def KPMCharacterList(kpm, owner, summary, sort=True):
                 if user.avoiddays != "":
                     nm += ", 기피요일: %s"%user.avoiddays
                 embed.add_field(name=nm, value=s, inline=False)
+            
+            if user.active:
+                tot_plu += cnt_plu
+                tot_ess += cnt_ess
+                tot_non += cnt_non
+                tot_plu_sup += cnt_plu_sup
+                tot_ess_sup += cnt_ess_sup
+                tot_non_sup += cnt_non_sup
+        if owner == None:
+            embed.add_field(name = "배정 중(예정)인 캐릭터 수", value = "필수 딜러 : %d, 서폿 %d\n예비 딜러 : %d, 서폿 %d"%(tot_ess, tot_ess_sup, tot_plu, tot_plu_sup), inline=False)
+
         return embed
     else:
         s = ""
@@ -364,9 +378,12 @@ def KPMCharacterEssential(kpm, character, state):
     else:
         return interactions.Embed(description="캐릭터 필수 설정 변경에 실패했습니다.", color=Color["red"])
     
-def KPMRecalculateTime(kpm):
+def KPMRecalculateTime(kpm, comp=None):
     printl(f"({kpm.idn})-RecalculateTime()")
-    kpm.RecalculateTime()
+    if comp == None:
+        kpm.RecalculateTime()
+    else:
+        kpm.RecalculateTime(comp.time_domain)
     Save(kpm, kpm.idn)
     return interactions.Embed(description="파티 시간을 재배정했습니다", color=Color["green"])
     
