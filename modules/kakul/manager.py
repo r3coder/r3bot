@@ -79,6 +79,7 @@ class Manager:
         self.groups = []
 
         self.idn = idn
+        self.time_domain = dict()
     
     def Fix(self):
         set = []
@@ -322,8 +323,11 @@ class Manager:
                 return True
         return False
 
-    def RecalculateTime(self):
-        fill = dict()
+    def RecalculateTime(self, time_domain=None):
+        if time_domain == None:
+            fill = dict()
+        else:
+            fill = time_domain
         pind = 0
         for pind in range(len(self.parties)):
             users = []
@@ -352,6 +356,7 @@ class Manager:
                         for user in users:
                             fill[str(ti)].append(user)
                         break
+        self.time_domain = fill
             
 
     def GeneratePartyV3(self, parameters = dict(), verbose = False):
@@ -370,6 +375,7 @@ class Manager:
         weight_duperole = 1 if "weight_duperole" not in parameters else parameters["weight_duperole"]
 
         best_error = 9999
+        best_both2deal = []
 
         def EvaluateParties(pps, param_pow = 2, param_dupe = 1):
             if len(pps) <= 0:
@@ -419,6 +425,7 @@ class Manager:
                                 both_ext.append(c)
             
             # Step 1, manage supporter-dealer ratio
+            both2deal = []
             if verbose:
                 printl(" >>> Step 1 : manage supporter-dealer ratio, %d/%d"%(len(supp_ess), len(deal_ess)))
             while len(supp_ess) * 3 != len(deal_ess):
@@ -437,6 +444,7 @@ class Manager:
                         deal_ess.append(both)
                         supp_ess.remove(both)
                         both_ess.remove(both)
+                        both2deal.append(both)
                         if verbose:
                             printl("Changed " + both.name + " to dealer")
                     elif len(both_ext) > 0:
@@ -444,6 +452,7 @@ class Manager:
                         deal_ess.append(both)
                         supp_ext.remove(both)
                         both_ext.remove(both)
+                        both2deal.append(both)
                         if verbose:
                             printl("Changed " + both.name + " to dealer")
                     else:
@@ -690,9 +699,13 @@ class Manager:
                 printl(f"Final Error: {final_error}")
             if final_error < best_error:
                 best_error = final_error
+                best_both2deal = both2deal
                 self.parties = parties
                 printl(f'New best #{step+1}, error: {best_error}')
                 
+        for char in self.characters:
+            if char in best_both2deal:
+                char.isSupportMode = False
         self.RecalculateTime()
         printl("#"*50)
         printl(f'{valid_gens}/{sample_steps} valid party generations')
