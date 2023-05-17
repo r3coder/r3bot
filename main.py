@@ -10,6 +10,7 @@ GUILD = os.getenv('DISCORD_GUILD')
 
 import interactions
 import asyncio
+import copy
 
 from modules.misc import Rice, TodayLuck
 from modules.emote import emote_dict
@@ -48,6 +49,8 @@ async def CallTask():
     if now.weekday() == 2 and now.hour == 10 and now.minute == 5:
         printl("Party Generation Started!")
         KPMPartyGenerate(KPM)
+        KPMPartyGenerate(YPM)
+        KPMRecalculateTime(YPM, KPM)
     if now.weekday() == 2 and now.hour == 10 and now.minute == 15:
         msg = KPMCallEveryBody(KPM)
         msg += "\n쿠크세이튼 파티가 결성되었습니다. `/파티목록` 명령어로 파티원을 확인하세요."
@@ -206,7 +209,7 @@ async def CommandPartyRecalculate(ctx: interactions.CommandContext):
     if ctx.channel_id == KPM.channel:
         embeds = KPMRecalculateTime(KPM)
     elif ctx.channel_id == YPM.channel:
-        embeds = KPMRecalculateTime(YPM)
+        embeds = KPMRecalculateTime(YPM, KPM)
     else:
         await ctx.send("파티 채널에서 실행해주세요.")
         return
@@ -624,7 +627,10 @@ async def CommandSetPartyClearX(ctx: interactions.CommandContext, number: int):
     ]
 )
 async def CommandPartyCall(ctx: interactions.CommandContext, number: int):
-    text, embeds = KPMPartyCall(KPM, number)
+    if ctx.channel_id == KPM.channel:
+        text, embeds = KPMPartyCall(KPM, number)
+    elif ctx.channel_id == YPM.channel:
+        text, embeds = KPMPartyCall(YPM, number)
     await ctx.send(text, embeds=embeds)
 
 @bot.command(
@@ -681,7 +687,9 @@ async def CommandCharacterDupe(ctx: interactions.CommandContext, character: str)
     chark = KPM.GetCharacterByName(character)
     chary = YPM.GetCharacterByName(character)
     if chark is not None and chary is None:
-        YPM.characters.append(chark)
+        # make hard copy of chark
+        chark_ = copy.deepcopy(chark)
+        YPM.characters.append(chark_)
         if not YPM.IsUserExists(chark.owner):
             YPM.users.append(KPM.GetUserByName(chark.owner))
         Save(YPM, YPM.idn)
@@ -690,6 +698,7 @@ async def CommandCharacterDupe(ctx: interactions.CommandContext, character: str)
             color=0x00ff00
         )
     elif chary is not None and chark is None:
+        chary_ = copy.deepcopy(chary)
         KPM.characters.append(chary)
         if not KPM.IsUserExists(chary.owner):
             KPM.users.append(YPM.GetUserByName(chary.owner))
