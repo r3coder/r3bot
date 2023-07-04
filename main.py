@@ -21,11 +21,14 @@ from modules.kakul.utils import Save, Load, printl, _ParseTimeText
 from modules.mahjong import MahjongScore
 from modules.quality import QualitySim
 from modules.balance import BalanceManager
+from modules.alias import AliasManager
 KPM = Manager("kpm")
+KPMCHANNELS = [970775035159654420, 1118559180509425754, 1118560926342328390, 1118560954129600612, 1118560974639747073, 1118560998220103752, 1118560904343208036]
 YPM = Manager("ypm")
 MS = MahjongScore()
 QS = QualitySim()
 BM = BalanceManager()
+ALS = AliasManager()
 
 bot = interactions.Client(TOKEN, intents=interactions.Intents.DEFAULT | interactions.Intents.GUILD_MESSAGE_CONTENT)
 
@@ -46,15 +49,16 @@ async def CallTask():
     now = datetime.datetime.now() + datetime.timedelta(hours=9)
 
     # print(f'{now.weekday()} / {now.hour} / {now.minute}')
-    if now.weekday() == 2 and now.hour == 10 and now.minute == 5:
-        printl("Party Generation Started!")
-        KPMPartyGenerate(KPM)
-        KPMPartyGenerate(YPM)
-        KPMRecalculateTime(YPM, KPM)
-    if now.weekday() == 2 and now.hour == 10 and now.minute == 15:
-        msg = KPMCallEveryBody(KPM)
-        msg += "\n쿠크세이튼 파티가 결성되었습니다. `/파티목록` 명령어로 파티원을 확인하세요."
-        await channel.send(msg)
+    # if now.weekday() == 2 and now.hour == 10 and now.minute == 5:
+    #     printl("Party Generation Started!")
+    #     KPMPartyGenerate(KPM)
+    #     KPMPartyGenerate(YPM)
+        # KPMRecalculateTime(YPM, KPM)
+    # if now.weekday() == 2 and now.hour == 10 and now.minute == 15:
+    #     msg = KPMCallEveryBody(KPM)
+    #     msg += "\n쿠크세이튼 파티가 결성되었습니다. `/파티목록` 명령어로 파티원을 확인하세요."
+    #     await channel.send(msg)
+    """
     if len(KPM.parties) > 0:
         v = ""
         for pid in range(len(KPM.parties)):
@@ -70,7 +74,7 @@ async def CallTask():
                     # print(day, hour, minute)
                     
             v = KPM.parties[pid].GetPartyOwnerString()
-
+    """
         # Call party 
 
 @bot.event
@@ -206,7 +210,7 @@ async def CommandSetChannel(ctx: interactions.CommandContext, channel: interacti
     scope=GUILD
 )
 async def CommandPartyRecalculate(ctx: interactions.CommandContext):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMRecalculateTime(KPM)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMRecalculateTime(YPM, KPM)
@@ -319,7 +323,7 @@ async def CommandPartyReset(ctx: interactions.CommandContext, type: str):
     scope=GUILD
 )
 async def CommandPartyCallEveryone(ctx: interactions.CommandContext):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         msg = KPMCallEveryBody(KPM)
         msg += "\n쿠크세이튼 파티가 결성되었습니다. `/파티목록` 명령어로 파티원을 확인하세요."
     elif ctx.channel_id == YPM.channel:
@@ -348,14 +352,23 @@ async def CommandPartyCallEveryone(ctx: interactions.CommandContext):
             type=interactions.OptionType.USER,
             required=False,
             name_localizations={"ko": "유저"}
+        ),
+        interactions.Option(
+            name="group",
+            description="값을 입력할 경우, 특정 그룹을 보여줍니다.",
+            type=interactions.OptionType.INTEGER,
+            required=False,
+            name_localizations={"ko": "그룹"}
         )
     ]
 )
-async def CommandPartyList(ctx: interactions.CommandContext, uncleared: bool = True, owner: interactions.Member = None):
+async def CommandPartyList(ctx: interactions.CommandContext, uncleared: bool = True, owner: interactions.Member = None, group: int = None):
     if owner is not None:
         owner = str(owner.user.username)
-    if ctx.channel_id == KPM.channel:
-        embeds = KPMPartyList(KPM, uncleared, owner)
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
+    if ctx.channel_id in KPMCHANNELS:
+        embeds = KPMPartyList(KPM, uncleared, owner, group)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMPartyList(YPM, uncleared, owner)
     else:
@@ -397,7 +410,9 @@ async def CommandPartyList(ctx: interactions.CommandContext, uncleared: bool = T
 async def CommandCharacterList(ctx: interactions.CommandContext, owner: interactions.Member = None, summary: bool = True, sort: bool = True):
     if owner is not None:
         owner = str(owner.user.username)
-    if ctx.channel_id == KPM.channel:
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMCharacterList(KPM, owner, summary, sort)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMCharacterList(YPM, owner, summary, sort)
@@ -452,7 +467,9 @@ async def CommandCharacterAdd(ctx: interactions.CommandContext, name: str, role:
     else:
         ping = owner.mention
         owner = str(owner.user.username)
-    if ctx.channel_id == KPM.channel:
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMAddCharacter(KPM, name, role, owner, ping, is_essential)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMAddCharacter(YPM, name, role, owner, ping, is_essential)
@@ -493,7 +510,7 @@ async def CommandCharacterAdd(ctx: interactions.CommandContext, name: str, role:
     ]        
 )
 async def CommandCharacterChangeInfo(ctx: interactions.CommandContext, name: str, is_essential: bool = None, is_support: bool = None):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMEditCharacter(KPM, name, is_essential, is_support)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMEditCharacter(YPM, name, is_essential, is_support)
@@ -546,7 +563,7 @@ async def CommandUpdateCharacter(ctx: interactions.CommandContext, name: str = N
     ]
 )
 async def CommandCharacterRemove(ctx: interactions.CommandContext, name: str):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMRemoveCharacter(KPM, name)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMRemoveCharacter(YPM, name)
@@ -573,7 +590,7 @@ async def CommandCharacterRemove(ctx: interactions.CommandContext, name: str):
     ]
 )
 async def CommandSetPartyClear(ctx: interactions.CommandContext, number: int):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMSetPartyClearState(KPM, number, True)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMSetPartyClearState(YPM, number, True)
@@ -600,7 +617,7 @@ async def CommandSetPartyClear(ctx: interactions.CommandContext, number: int):
     ]
 )
 async def CommandSetPartyClearX(ctx: interactions.CommandContext, number: int):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMSetPartyClearState(KPM, number, False)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMSetPartyClearState(YPM, number, False)
@@ -627,7 +644,7 @@ async def CommandSetPartyClearX(ctx: interactions.CommandContext, number: int):
     ]
 )
 async def CommandPartyCall(ctx: interactions.CommandContext, number: int):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         text, embeds = KPMPartyCall(KPM, number)
     elif ctx.channel_id == YPM.channel:
         text, embeds = KPMPartyCall(YPM, number)
@@ -656,7 +673,7 @@ async def CommandPartyCall(ctx: interactions.CommandContext, number: int):
     ]
 )
 async def CommandPartyJoin(ctx: interactions.CommandContext, party: int, character: str):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMPartyJoin(KPM, party, character)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMPartyJoin(YPM, party, character)
@@ -736,7 +753,7 @@ async def CommandCharacterDupe(ctx: interactions.CommandContext, character: str)
     ]
 )
 async def CommandPartyLeave(ctx: interactions.CommandContext, character: str):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMPartyLeave(KPM, character)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMPartyLeave(YPM, character)
@@ -770,7 +787,7 @@ async def CommandPartyLeave(ctx: interactions.CommandContext, character: str):
     ]
 )
 async def CommandPartySwap(ctx: interactions.CommandContext, name1: str, name2: str):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMPartySwap(KPM, name1, name2)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMPartySwap(YPM, name1, name2)
@@ -788,7 +805,7 @@ async def CommandPartySwap(ctx: interactions.CommandContext, name1: str, name2: 
     scope=GUILD
 )
 async def CommandPartyAdd(ctx: interactions.CommandContext):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMPartyAdd(KPM)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMPartyAdd(YPM)
@@ -823,7 +840,7 @@ async def CommandPartyAdd(ctx: interactions.CommandContext):
     ]
 )
 async def CommandPartyEditTime(ctx: interactions.CommandContext, party: int, time: str):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMPartyEditTime(KPM, party, time)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMPartyEditTime(YPM, party, time)
@@ -862,7 +879,10 @@ async def CommandUserActive(ctx: interactions.CommandContext, owner: interaction
         owner = str(ctx.author.user.username)
     else:
         owner = str(owner.user.username)
-    if ctx.channel_id == KPM.channel:
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
+        
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMUserActive(KPM, owner, state)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMUserActive(YPM, owner, state)
@@ -901,7 +921,9 @@ async def CommandUserAvoidDays(ctx: interactions.CommandContext, avoiddays: str 
         owner = str(ctx.author.user.username)
     else:
         owner = str(owner.user.username)
-    if ctx.channel_id == KPM.channel:
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMUserSetAvoidDays(KPM, owner, avoiddays)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMUserSetAvoidDays(YPM, owner, avoiddays)
@@ -937,7 +959,7 @@ async def CommandUserAvoidDays(ctx: interactions.CommandContext, avoiddays: str 
     ]
 )
 async def CommandCharaActive(ctx: interactions.CommandContext, character: str, state: bool):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMCharacterActive(KPM, character, state)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMCharacterActive(YPM, character, state)
@@ -972,7 +994,7 @@ async def CommandCharaActive(ctx: interactions.CommandContext, character: str, s
     ]
 )
 async def CommandCharaEssential(ctx: interactions.CommandContext, character: str, state: bool):
-    if ctx.channel_id == KPM.channel:
+    if ctx.channel_id in KPMCHANNELS:
         embeds = KPMCharacterEssential(KPM, character, state)
     elif ctx.channel_id == YPM.channel:
         embeds = KPMCharacterEssential(YPM, character, state)
@@ -983,6 +1005,45 @@ async def CommandCharaEssential(ctx: interactions.CommandContext, character: str
         )
     await ctx.send("", embeds=embeds)
 
+
+
+@bot.command(
+    name="alias",
+    name_localizations={"ko": "대체이름설정"},
+    description="이전 닉네임을 입력해 주세요.",
+    scope=GUILD,
+    options = [
+        interactions.Option(
+            name="prevname",
+            description="이전 이름 (대소문자 중요)",
+            type=interactions.OptionType.STRING,
+            required=True,
+            name_localizations={"ko": "이전이름"}
+        ),
+        interactions.Option(
+            name="curname",
+            description="새 이름 (대소문자 중요), 꼭 넣을 필요 없음",
+            type=interactions.OptionType.STRING,
+            required=False,
+            name_localizations={"ko": "새이름"}
+        )
+    ]
+)
+async def CommandAlias(ctx: interactions.CommandContext, prevname: str, curname: str = ""):
+    if curname == "":
+        curname = str(ctx.author.user.username)
+    res = ALS.AddAlias(curname, prevname)
+    if res:
+        embeds = interactions.Embed(
+            title=f"{curname}의 이전 이름 {prevname}이 등록되었습니다.",
+            color=0x00ff00
+        )
+    else:
+        embeds = interactions.Embed(
+            title=f"{curname}의 이전 이름이 이미 등록되어 있습니다.",
+            color=0xff0000
+        )
+    await ctx.send("", embeds=embeds)
 
 ##################################################
 # Mahjong Commands
@@ -1122,6 +1183,8 @@ async def CommandMahjongRecent(ctx: interactions.CommandContext):
 )
 async def CommandQualityUpgrade(ctx: interactions.CommandContext):
     owner = str(ctx.author.user.username)
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
     embeds = QS.GetEmbed(owner)
     btns = QS.GetButtons(owner)
     await ctx.send("", embeds=embeds,
@@ -1141,6 +1204,8 @@ async def CommandQualityRank(ctx: interactions.CommandContext):
 @bot.component("qub0")
 async def CommandQualityUpgrade0(ctx: interactions.ComponentContext):
     owner = str(ctx.author.user.username)
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
     embeds = QS.UpgradeQuality(owner, 0)
     btns = QS.GetButtons(owner)
     await ctx.edit("", embeds=embeds,
@@ -1149,6 +1214,8 @@ async def CommandQualityUpgrade0(ctx: interactions.ComponentContext):
 @bot.component("qub1")
 async def CommandQualityUpgrade1(ctx: interactions.ComponentContext):
     owner = str(ctx.author.user.username)
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
     embeds = QS.UpgradeQuality(owner, 1)
     btns = QS.GetButtons(owner)
     await ctx.edit("", embeds=embeds,
@@ -1157,6 +1224,8 @@ async def CommandQualityUpgrade1(ctx: interactions.ComponentContext):
 @bot.component("qub2")
 async def CommandQualityUpgrade2(ctx: interactions.ComponentContext):
     owner = str(ctx.author.user.username)
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
     embeds = QS.UpgradeQuality(owner, 2)
     btns = QS.GetButtons(owner)
     await ctx.edit("", embeds=embeds,
@@ -1165,6 +1234,8 @@ async def CommandQualityUpgrade2(ctx: interactions.ComponentContext):
 @bot.component("qub3")
 async def CommandQualityUpgrade3(ctx: interactions.ComponentContext):
     owner = str(ctx.author.user.username)
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
     embeds = QS.UpgradeQuality(owner, 3)
     btns = QS.GetButtons(owner)
     await ctx.edit("", embeds=embeds,
@@ -1173,6 +1244,8 @@ async def CommandQualityUpgrade3(ctx: interactions.ComponentContext):
 @bot.component("qub4")
 async def CommandQualityUpgrade4(ctx: interactions.ComponentContext):
     owner = str(ctx.author.user.username)
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
     embeds = QS.UpgradeQuality(owner, 4)
     btns = QS.GetButtons(owner)
     await ctx.edit("", embeds=embeds,
@@ -1181,6 +1254,8 @@ async def CommandQualityUpgrade4(ctx: interactions.ComponentContext):
 @bot.component("qub5")
 async def CommandQualityUpgrade5(ctx: interactions.ComponentContext):
     owner = str(ctx.author.user.username)
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
     embeds = QS.UpgradeQuality(owner, 5)
     btns = QS.GetButtons(owner)
     await ctx.edit("", embeds=embeds,
@@ -1215,6 +1290,8 @@ async def CommandQualityAdd(ctx: interactions.CommandContext, owner: interaction
         owner = str(ctx.author.user.username)
     else:
         owner = str(owner.user.username)
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
     embeds = QS.AddStone(owner, amount)
     await ctx.send("", embeds = embeds)
 
@@ -1246,9 +1323,10 @@ async def CommandQualitySub(ctx: interactions.CommandContext, owner: interaction
         owner = str(ctx.author.user.username)
     else:
         owner = str(owner.user.username)
+    if owner in ALS.aliases:
+        owner = ALS.aliases[owner]
     embeds = QS.SubStone(owner, amount)
     await ctx.send("", embeds = embeds)
-
 
 @bot.command(
     name="purge_message",

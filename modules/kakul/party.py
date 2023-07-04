@@ -124,7 +124,7 @@ class Party:
 
     def StrFull(self):
         v = ":o:" if self.cleared else ":x:"
-        s = "인원:%d/4, 딜량:%2.2f, 클리어:%s, 시간:%s\n"%(len(self.members), self.GetPartyPower(), v, self.daytime)
+        s = "인원:%d/4, 딜량:%2.2f, 클리어:%s, 추천요일:%s\n"%(len(self.members), self.GetPartyPower(), v, self.daytime)
         for member in self.members:
             s += "  " + member.StrFull() + "\n"
         return s

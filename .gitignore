@@ -1,5 +1,6 @@
 data/
 backup/
+logs_old/
 logs/*.txt
 *__pycache__
 *_.py

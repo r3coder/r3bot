@@ -38,7 +38,7 @@ def KPMCallEveryBody(kpm):
             msg += "%s "%user.ping
     return msg
     
-def KPMPartyList(kpm, uncleared=True, owner=None):
+def KPMPartyList(kpm, uncleared=True, owner=None, group=None):
     printl(f"({kpm.idn})-PartyList")
     if len(kpm.parties) == 0:
         return interactions.Embed(description="결성되어 있는 파티가 없습니다. 관리자에게 문의해 파티결성 명령을 입력해 주세요.", color=0xff0000)
@@ -75,6 +75,8 @@ def KPMPartyList(kpm, uncleared=True, owner=None):
             pps.append(kpm.parties[ind])
         if len(pps) == 0:
             continue
+        if group != None and group != gind:
+            continue
         val, val2 = "", ""
         for p in pps:
             ln = "%s\n"%(p.ShortStr())
@@ -83,11 +85,11 @@ def KPMPartyList(kpm, uncleared=True, owner=None):
             else:
                 val += "%s\n"%(p.ShortStr())
         vv = " %d연공"%len(pps) if len(pps) > 1 else " "
-        tt = " " + pps[0].daytime
+        tt = " 추천요일 : " + pps[0].daytime
         embed.add_field(name="그룹 %d [%s]%s%s"%(gind, key, vv, tt), value=val, inline=False)
         if val2 != "":
             embed.add_field(name="===", value=val2, inline=False)
-
+    """
     if len(kpm.leftovers) > 0:
         v = ""
         for char in kpm.leftovers:
@@ -96,6 +98,7 @@ def KPMPartyList(kpm, uncleared=True, owner=None):
             v += "%s,  "%char.StrOwner()
         v = v[:-2]
         embed.add_field(name="예비 인원", value=v, inline=False)
+    """
     v = ""
     for key in kpm.users:
         if key.active == False:
@@ -106,7 +109,7 @@ def KPMPartyList(kpm, uncleared=True, owner=None):
     return embed
 
 def KPMCharacterList(kpm, owner, summary, sort=True):
-    printl(f"({kpm.idn})-CharacterList")
+    printl(f"({kpm.idn})-CharacterList({owner})")
     kpm.Validate()
     tot_plu, tot_ess, tot_non = 0, 0, 0
     tot_plu_sup, tot_ess_sup, tot_non_sup = 0, 0, 0
@@ -145,8 +148,8 @@ def KPMCharacterList(kpm, owner, summary, sort=True):
                 if summary:
                     s = s[:-2]
                 nm = "`%s`의 캐릭터"%user.name
-                if user.active == False:
-                    nm += ", 배정 중지됨"
+                if user.active == False and owner == None:
+                    continue
                 else:
                     if cnt_plu + cnt_plu_sup > 0:
                         nm += ", 딜러 %d(+%d), 서폿 %d(+%d)"%(cnt_ess, cnt_plu, cnt_ess_sup, cnt_plu_sup)
@@ -165,6 +168,8 @@ def KPMCharacterList(kpm, owner, summary, sort=True):
                 tot_plu_sup += cnt_plu_sup
                 tot_ess_sup += cnt_ess_sup
                 tot_non_sup += cnt_non_sup
+            # if user.active == False:
+            #     embed.add_field(name="배정 중지됨", value="__", inline=False)
         if owner == None:
             embed.add_field(name = "배정 중(예정)인 캐릭터 수", value = "필수 딜러 : %d, 서폿 %d\n예비 딜러 : %d, 서폿 %d"%(tot_ess, tot_ess_sup, tot_plu, tot_plu_sup), inline=False)
 

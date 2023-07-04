@@ -50,21 +50,19 @@ def GetTextTime(ind):
 def GetAllTimesWithoutDay(days):
     v = []
     if "수" not in days:
-        v.extend(range(     12*3,     15*3)) # 22:00 ~ 25:00
+        v.extend(range(     12*3,     14*3)) # 22:00 ~ 24:00
     if "목" not in days:
-        v.extend(range(72*1+12*3,72*1+15*3)) # 22:00 ~ 25:00
+        v.extend(range(72*1+12*3,72*1+14*3)) # 22:00 ~ 24:00
     if "금" not in days:
-        v.extend(range(72*2+12*3,72*2+15*3)) # 22:00 ~ 25:00
+        v.extend(range(72*2+12*3,72*2+14*3)) # 22:00 ~ 24:00
     if "토" not in days:
         v.extend(range(72*3+ 6*3,72*3+ 8*3)) # 16:00 ~ 18:00
-        v.extend(range(72*3+14*3,72*3+16*3)) # 24:00 ~ 26:00
     if "일" not in days:
         v.extend(range(72*4+ 6*3,72*4+ 8*3)) # 16:00 ~ 18:00
-        v.extend(range(72*4+14*3,72*4+16*3)) # 24:00 ~ 26:00
     if "월" not in days:
-        v.extend(range(72*5+12*3,72*5+15*3)) # 22:00 ~ 25:00
+        v.extend(range(72*5+12*3,72*5+14*3)) # 22:00 ~ 24:00
     if "화" not in days:
-        v.extend(range(72*6+12*3,72*6+15*3)) # 22:00 ~ 25:00
+        v.extend(range(72*6+12*3,72*6+14*3)) # 22:00 ~ 24:00
     return v
 
 
@@ -324,6 +322,23 @@ class Manager:
         return False
 
     def RecalculateTime(self, time_domain=None):
+        
+        for pind in range(len(self.parties)):
+            users = []
+            for mem in self.parties[pind].members:
+                users.append(mem.owner)
+            sss = []
+            for user in self.users:
+                if self.parties[pind].isOwnerExists(user.name):
+                    for day in user.avoiddays:
+                        sss.append(day)
+            svs = ""
+            for day in ["수", "목", "금", "토", "일", "월", "화"]:
+                if day not in sss:
+                    svs += day
+            self.parties[pind].daytime = svs
+            
+        """
         if time_domain == None:
             fill = dict()
         else:
@@ -357,6 +372,7 @@ class Manager:
                             fill[str(ti)].append(user)
                         break
         self.time_domain = fill
+        """
             
 
     def GeneratePartyV3(self, parameters = dict(), verbose = False):
@@ -438,7 +454,7 @@ class Manager:
                             printl("Added " + supp.name + " to support")
                     else:
                         break
-                elif len(supp_ess) * 3 > len(deal_ess) + 3:
+                elif len(supp_ess) * 3 > len(deal_ess) + 3 and (len(both_ess) > 0 or len(both_ext) > 0):
                     if len(both_ess) > 0: # Change "Both" to "Dealer"
                         both = random.choice(both_ess)
                         deal_ess.append(both)
